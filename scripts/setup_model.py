@@ -7,7 +7,6 @@ def progress_callback(block_num, block_size, total_size):
     downloadED = block_num * block_size
     if total_size > 0:
         percent = min(int(downloadED * 100 / total_size), 100)
-        # Mengonversi ke Megabyte untuk kejelasan informasi
         downloaded_mb = downloadED / (1024 * 1024)
         total_mb = total_size / (1024 * 1024)
         
@@ -15,20 +14,16 @@ def progress_callback(block_num, block_size, total_size):
         sys.stdout.flush()
 
 def main():
-    # URL Model Qwen 1.5B Chat GGUF (K-Quantized untuk performa optimal CPU lokal)
     MODEL_URL = "https://huggingface.co/Qwen/Qwen1.5-1.8B-Chat-GGUF/resolve/main/qwen1_5-1_8b-chat-q4_k_m.gguf"
     
-    # Menargetkan folder 'model/' di akar proyek (satu tingkat di atas folder 'scripts')
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dir = os.path.join(base_dir, "model")
     target_file = os.path.join(target_dir, "qwen-1_5b.gguf")
 
-    # 1. Pastikan folder tujuan tersedia
     if not os.path.exists(target_dir):
         print(f"[INFO] Membuat direktori penyimpanan model lokal di: {target_dir}")
         os.makedirs(target_dir)
 
-    # 2. Validasi jika file model sudah pernah diunduh sebelumnya
     if os.path.exists(target_file):
         print(f"[SKIP] Model sudah terpasang di: {target_file}")
         return
@@ -39,7 +34,6 @@ def main():
         print("\n[SUCCESS] Model GGUF berhasil diunduh dan dikunci di dalam folder model/.")
     except Exception as e:
         print(f"\n[ERROR] Gagal mengunduh model: {e}")
-        # Hapus file setengah jadi jika terjadi kegagalan koneksi jaringan
         if os.path.exists(target_file):
             os.remove(target_file)
         sys.exit(1)
