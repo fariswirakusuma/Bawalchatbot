@@ -40,6 +40,12 @@ setup_model:
 	python3 scripts/setup_model.py
 
 clean:
-	@echo "[CLEAN] Menghapus seluruh artefak produksi biner..."
+	@echo "[CLEAN] Menghapus seluruh artefak produksi biner C++..."
 	rm -rf $(DIST_DIR)
-	@echo "[SUCCESS] Workspace kembali bersih."
+	@echo "[SUCCESS] Cache kompilasi dibersihkan. Model lokal tetap aman."
+
+clean_all: clean
+	@echo "[CLEAN] Menghapus folder model AI..."
+	rm -rf model
+	rm -rf src/model
+	@echo "[SUCCESS] Seluruh ruang penyimpanan dibersihkan total."
