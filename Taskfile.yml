@@ -1,0 +1,50 @@
+version: '3'
+
+vars:
+  DIST_DIR: dist
+  TARGET_BIN: '{{.DIST_DIR}}/chatbox_core'
+  WWW_DIR: www
+
+tasks:
+  default:
+    desc: "Membangun seluruh ekosistem backend C++"
+    cmds:
+      - task: build_backend
+
+  build_backend:
+    desc: "Mengompilasi Core Engine C++ via CMake"
+    cmds:
+      - mkdir -p {{.DIST_DIR}}
+      - cd {{.DIST_DIR}} && cmake .. && cmake --build .
+    status:
+      # Mengoptimalkan waktu build: Hanya kompilasi jika ada perubahan file .cpp/.hpp
+      - test -f {{.TARGET_BIN}}
+
+  build_frontend:
+    desc: "Mengompilasi dan bundling aset UI Web/App"
+    dir: '{{.WWW_DIR}}'
+    cmds:
+      - npm install
+      - npm run build
+
+  run_cli:
+    desc: "Menjalankan Chatbox Engine interaktif langsung di terminal (Testing Mode)"
+    deps: [build_backend]
+    cmds:
+      - ./{{.TARGET_BIN}} --cli
+
+  run:
+    desc: "Membuka Aplikasi Grafis Desktop (GUI Mode)"
+    deps: [build_backend, build_frontend]
+    cmds:
+      - cd {{.WWW_DIR}} && npm run start
+
+  setup_model:
+    desc: "Mengunduh dan memasang model AI lokal via skrip Python"
+    cmds:
+      - python3 scripts/setup_model.py
+
+  clean:
+    desc: "Membersihkan seluruh cache biner hasil kompilasi"
+    cmds:
+      - rm -rf {{.DIST_DIR}}
