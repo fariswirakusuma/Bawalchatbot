@@ -4,6 +4,8 @@ vars:
   DIST_DIR: dist
   TARGET_BIN: '{{.DIST_DIR}}/chatbox_core'
   WWW_DIR: www
+  MODEL: 'flash'
+  PROMPT: 'Lakukan verifikasi struktur kode C++ pada komponen Lexer dan Parser'
 
 tasks:
   default:
@@ -48,3 +50,14 @@ tasks:
     desc: "Membersihkan seluruh cache biner hasil kompilasi"
     cmds:
       - rm -rf {{.DIST_DIR}}
+
+  prompt_debug:
+    desc: "Jalankan otomatisasi kompilasi + analisa error via .gemini/workflows/debugger.json"
+    deps: [build_backend]
+    cmds:
+      - python3 scripts/agent_gateway.py --mode debugger --prompt "{{.PROMPT}}" --model-type {{.MODEL}}
+  prompt_web:
+    desc: "Jalankan otomatisasi kompilasi + analisa error via .gemini/workflows/web_builder.json"
+    deps: [build_backend]
+    cmds:
+      - python3 scripts/agent_gateway.py --mode web_builder --prompt "{{.PROMPT}}" --model-type {{.MODEL}}
