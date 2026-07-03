@@ -1,11 +1,14 @@
 version: '3'
 
 vars:
+  # Disesuaikan dengan folder output asli Anda
   DIST_DIR: dist
   TARGET_BIN: '{{.DIST_DIR}}/chatbox_core'
   WWW_DIR: www
-  MODEL: 'flash'
-  PROMPT: 'Lakukan verifikasi struktur kode C++ pada komponen Lexer dan Parser'
+  # Variabel baru untuk manajemen model Llama
+  MODEL_DIR: models
+  MODEL_URL: '{{.MODEL_URL | default "https://huggingface.co/lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf"}}'
+  MODEL_FILE: '{{.MODEL_DIR}}/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf'
 
 tasks:
   default:
@@ -16,10 +19,11 @@ tasks:
   build_backend:
     desc: "Mengompilasi Core Engine C++ via CMake"
     cmds:
-      - mkdir -p {{.DIST_DIR}}
-      - cd {{.DIST_DIR}} && cmake .. && cmake --build .
+      # -S mencari CMakeLists.txt di folder src
+      # -B mengarahkan hasil build/kompilasi ke folder dist
+      - cmake -S src -B {{.DIST_DIR}}
+      - cmake --build {{.DIST_DIR}}
     status:
-      # Mengoptimalkan waktu build: Hanya kompilasi jika ada perubahan file .cpp/.hpp
       - test -f {{.TARGET_BIN}}
 
   build_frontend:
@@ -46,18 +50,34 @@ tasks:
     cmds:
       - python3 scripts/setup_model.py
 
+  install_llama:
+    desc: "Mengunduh model Llama (.gguf) ke folder lokal"
+    cmds:
+      - mkdir -p {{.MODEL_DIR}}
+      - echo "Mengunduh model dari {{.MODEL_URL}}..."
+      - curl -L -o {{.MODEL_FILE}} {{.MODEL_URL}}
+    status:
+      - test -f {{.MODEL_FILE}}
+
   clean:
     desc: "Membersihkan seluruh cache biner hasil kompilasi"
     cmds:
       - rm -rf {{.DIST_DIR}}
-
+ 
   prompt_debug:
     desc: "Jalankan otomatisasi kompilasi + analisa error via .gemini/workflows/debugger.json"
-    deps: [build_backend]
+    vars:
+      EXEC_MODEL: '{{.MODEL | default "flash"}}'
+      EXEC_PROMPT: '{{.PROMPT | default "Lakukan verifikasi struktur kode C++ pada komponen Lexer dan Parser"}}'
+      EXEC_UPDATE: '{{.UPDATE | default ""}}'
     cmds:
-      - python3 scripts/agent_gateway.py --mode debugger --prompt "{{.PROMPT}}" --model-type {{.MODEL}}
+      - python3 scripts/agent_gateway.py --mode debugger --prompt "{{.EXEC_PROMPT}}" --model-type {{.EXEC_MODEL}} --update-file "{{.EXEC_UPDATE}}"
+
   prompt_web:
     desc: "Jalankan otomatisasi kompilasi + analisa error via .gemini/workflows/web_builder.json"
     deps: [build_backend]
+    vars:
+      EXEC_MODEL: '{{.MODEL | default "flash"}}'
+      EXEC_PROMPT: '{{.PROMPT | default "Lakukan verifikasi struktur kode C++ pada komponen Lexer dan Parser"}}'
     cmds:
-      - python3 scripts/agent_gateway.py --mode web_builder --prompt "{{.PROMPT}}" --model-type {{.MODEL}}
+      - python3 scripts/agent_gateway.py --mode web_builder --prompt "{{.EXEC_PROMPT}}" --model-type {{.EXEC_MODEL}}

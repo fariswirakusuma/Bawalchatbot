@@ -2,7 +2,7 @@
 #include <string>
 #include <unordered_map>
 #include <optional>
-#include "chat_structures.hpp"
+#include "context.hpp"
 #include "token.hpp"
 
 using namespace std;
