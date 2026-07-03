@@ -81,3 +81,11 @@ tasks:
       EXEC_PROMPT: '{{.PROMPT | default "Lakukan verifikasi struktur kode C++ pada komponen Lexer dan Parser"}}'
     cmds:
       - python3 scripts/agent_gateway.py --mode web_builder --prompt "{{.EXEC_PROMPT}}" --model-type {{.EXEC_MODEL}}
+  prompt_debug_gemini:
+    desc: "Jalankan otomatisasi kompilasi + analisa error via .gemini/workflows/debugger.json"
+    vars:
+      EXEC_MODEL: '{{.MODEL | default "flash"}}'
+      EXEC_PROMPT: '{{.PROMPT | default "Lakukan verifikasi struktur kode C++ pada komponen Lexer dan Parser"}}'
+      EXEC_UPDATE: '{{.UPDATE | default ""}}'
+    cmds:
+      - python3 scripts/agent_gateway.py --mode debugger --prompt "{{.EXEC_PROMPT}}" --model-type {{.EXEC_MODEL}} --update-file "{{.EXEC_UPDATE}}"
