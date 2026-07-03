@@ -12,12 +12,20 @@ _deps
 CMakeUserPresets.json
 Build
 build/
+dist/chatbox_core
+dist/Makefile
 
 #python
 .venv
 #vscode
 .vscode/
 *.gguf
+
+#temporary backup
+*.bak
+
+#llama
+llama.cpp
 
 
 
