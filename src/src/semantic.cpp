@@ -131,16 +131,21 @@ bool SemanticAnalyzer::process_set_prompt_command(const CommandNode& node, Conte
         add_error("Semantic Error: 'set_prompt' command requires a prompt string.");
         return false;
     }
-
+    // for combining all literal text arguments into a single prompt string
+    std::string combined_prompt = "";
     if (!node.arguments.empty()) {
-        if (node.arguments[0]->type == NodeType::LiteralText) {
-            const LiteralTextNode* promptNode = static_cast<const LiteralTextNode*>(node.arguments[0].get());
-            session.systemPrompt = promptNode->text;
-            return true;
-        } else {
-            add_error("Semantic Error: 'set_prompt' command expects a literal text for the prompt string.");
-            return false;
+        for (const auto& argNodePtr : node.arguments) {
+            if (argNodePtr->type == NodeType::LiteralText) {
+                const LiteralTextNode* textNode = static_cast<const LiteralTextNode*>(argNodePtr.get());
+                if (!combined_prompt.empty()) combined_prompt += " ";
+                combined_prompt += textNode->text;
+            } else {
+                add_error("Semantic Error: 'set_prompt' command expects literal text arguments.");
+                return false;
+            }
         }
+        session.systemPrompt = combined_prompt;
+        return true;
     }
     else if (!node.parameters.empty()) {
         const ParameterNode* promptParam = node.parameters[0].get();
@@ -219,16 +224,16 @@ bool SemanticAnalyzer::process_save_history_command(const CommandNode& node, Con
 
 bool SemanticAnalyzer::process_generate_command(const CommandNode& node, ContextSession& session) {
     bool success = true;
-    std::optional<std::string> user_prompt_arg;
+    std::string combined_user_prompt = "";
 
+    // PERBAIKAN UTAMA: Gabungkan semua argumen teks menggunakan spasi
     for (const auto& argNodePtr : node.arguments) {
         if (argNodePtr->type == NodeType::LiteralText) {
             const LiteralTextNode* textNode = static_cast<const LiteralTextNode*>(argNodePtr.get());
-            if (user_prompt_arg.has_value()) {
-                add_error("Semantic Error: 'generate' command received multiple direct prompt arguments.");
-                success = false;
+            if (!combined_user_prompt.empty()) {
+                combined_user_prompt += " ";
             }
-            user_prompt_arg = textNode->text;
+            combined_user_prompt += textNode->text;
         } else {
             add_error("Semantic Error: 'generate' command received a non-literal argument.");
             success = false;
@@ -239,11 +244,11 @@ bool SemanticAnalyzer::process_generate_command(const CommandNode& node, Context
         const ParameterNode* pNode = paramNodePtr.get();
 
         if (pNode->key == "prompt") {
-            if (user_prompt_arg.has_value()) {
+            if (!combined_user_prompt.empty()) {
                 add_error("Semantic Error: 'generate' command received multiple prompt arguments (e.g., direct and --prompt).");
                 success = false;
             }
-            user_prompt_arg = pNode->value;
+            combined_user_prompt = pNode->value;
         } else if (pNode->key == "max_tokens") {
             if (auto val = string_to_int(pNode->value)) {
                 session.maxTokens = val.value();
@@ -286,9 +291,8 @@ bool SemanticAnalyzer::process_generate_command(const CommandNode& node, Context
         }
     }
 
-    if (user_prompt_arg.has_value()) {
-        // Fix: Message::role::User is not defined. Use string literal "user".
-        session.chatHistory.push_back({"user", user_prompt_arg.value()});
+    if (!combined_user_prompt.empty()) {
+        session.chatHistory.push_back({"user", combined_user_prompt});
     }
 
     return success;
