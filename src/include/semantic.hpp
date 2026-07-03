@@ -2,7 +2,7 @@
 
 #include "context.hpp" // For ContextSession, ChatMessage, etc.
 #include "parser.hpp"          // For CommandNode, CommandType, and other AST structures
-// #include "llama_engine.hpp"    // Included for potential future integration or type definitions,
+// #include "third_party/llama.cpp/include/llama.h"    // Included for potential future integration or type definitions,
                                // but not directly used for llama_context/model lifecycle management here.
 
 #include <memory>      // For std::unique_ptr (if internal state requires dynamic ownership)
