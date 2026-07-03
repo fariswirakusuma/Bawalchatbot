@@ -1,0 +1,7 @@
+Nama Node,Bertindak Sebagai,Data / Atribut yang Disimpan,Node Anak (Child Nodes) yang Ditampung
+ProgramNode,Root Induk (Akar Utama),- (Hanya penanda awal skrip),Menyimpan sebuah std::vector yang bisa berisi campuran VariableDeclNode dan CommandNode.
+VariableDeclNode,Deklarator Variabel,std::string name (Nama variabel),std::string value atau sebuah Node Literal yang menyimpan isi teks variabel tersebut.
+CommandNode,"Pemicu Perintah (e.g., /generate)",std::string name (Nama perintah),1. std::vector dari ParameterNode2. std::vector dari simpul argumen (VariableAccessNode atau LiteralTextNode).
+ParameterNode,"Konfigurator Flag (e.g., --temp=0.5)","1. std::string key *(e.g., ""temp"")<br>2. float/int value` (e.g., 0.5)",Tidak memiliki node anak (Leaf Node / Simpul Daun).
+VariableAccessNode,Pemanggil Variabel,std::string name (Nama variabel yang dipanggil),Tidak memiliki node anak. (Nanti divalidasi oleh Symbol Table).
+LiteralTextNode,Penampung Teks Mentah,std::string text (Isi prompt murni),Tidak memiliki node anak (Leaf Node).

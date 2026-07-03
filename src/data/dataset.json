@@ -1,0 +1,19 @@
+{
+  "intents": [
+    {
+        "tag": "sapaan",
+        "patterns": ["Halo selamat pagi", "Hai admin", "Pagi bos", "Hello"],
+        "responses": ["Halo! Ada yang bisa saya bantu?", "Selamat datang! ada yang bisa dibantu?"]
+    },
+    {
+      "tag": "pembelian",
+      "patterns": ["Saya mau pesan kopi latte", "Order es teh satu ya", "Beli americano dingin", "Bisa pesan minum?"],
+      "responses": ["Baik, pesanan Anda sedang diproses.", "Silakan tunggu sebentar, kami catat pesanannya."]
+    },
+    {
+      "tag": "bantuan_error",
+      "patterns": ["Program saya crash", "Gimana cara benerin error segfault?", "Aplikasi tidak bisa dibuka", "Ada bug di kode saya"],
+      "responses": ["Bisa kirimkan log error-nya?", "Mari kita periksa kode bagian alokasi memorinya."]
+    }
+  ]
+}
