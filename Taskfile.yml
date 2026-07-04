@@ -13,7 +13,7 @@ vars:
 tasks:
   default:
     desc: "Membangun seluruh ekosistem backend C++"
-    cmds:
+    cmds: 
       - task: build_backend
 
   help:
