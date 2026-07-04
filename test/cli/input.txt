@@ -1,0 +1,7 @@
+> /help
+> /set_model qwen-1_5b.gguf
+> /generate whats the difference between #ifndef, #ifdef and #pragma in cpp
+> /generate whats is buffer overflow can you make an example of it
+> /save_history test2
+> /exit
+> /load_history test2

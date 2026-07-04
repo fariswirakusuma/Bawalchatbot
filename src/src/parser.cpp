@@ -26,8 +26,6 @@ void ProgramNode::printAST_tree(std::ostream& os, const std::string& prefix, boo
         children[i]->printAST_tree(os, childPrefix, isLastChild);
     }
 }
-
-// Implementation of VariableAccessNode
 VariableAccessNode::VariableAccessNode() { 
     type = NodeType::VariableAccess; 
 }
@@ -118,7 +116,6 @@ std::unique_ptr<ProgramNode> Parser::parse() {
             program_node->children.push_back(parse_statement());
         } catch (const std::runtime_error& e) {
             add_error(e.what());
-            // Attempt to recover by skipping to the next command or EOF
             while (m_current_token.type != TokenType::COMMAND && m_current_token.type != TokenType::END_OF_FILE) {
                 advance();
             }
@@ -151,8 +148,6 @@ void Parser::consume(TokenType expected_type) {
 }
 
 void Parser::add_error(const std::string& message) {
-    // We don't have line/column in the basic Token struct based on token.hpp, 
-    // so we just push the raw message.
     m_errors.push_back("Parser Error: " + message);
 }
 
@@ -256,6 +251,7 @@ CommandType Parser::get_command_type(const std::string& command_name) const {
     if (command_name == "load-history" || command_name == "load_history") return CommandType::LoadHistory;
     if (command_name == "save-history" || command_name == "save_history") return CommandType::SaveHistory;
     if (command_name == "generate") return CommandType::Generate;
+    if (command_name == "help") return CommandType::Help;
     if (command_name == "set-param" || command_name == "set_param") return CommandType::SetParam;
     if (command_name == "exit") return CommandType::Exit;
     return CommandType::Unknown;

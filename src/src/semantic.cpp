@@ -84,6 +84,11 @@ bool SemanticAnalyzer::analyze_and_apply(const CommandNode* ast_root, ContextSes
         case CommandType::SetParam:
             success = process_set_param_command(*ast_root, session);
             break;
+        case CommandType::Help:
+            
+            // Help command doesn't modify session, but we can validate its structure if needed
+            success = true; // Assuming help command is always valid for now
+            break;
         case CommandType::Exit:
             success = process_exit_command(*ast_root, session);
             break;

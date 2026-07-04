@@ -18,6 +18,7 @@ struct ContextSession {
     bool shouldExit = false;
     std::vector<Message> chatHistory;
     std::string modelName; 
+    std::string historyFileName;
 };
 
 struct StructuredOutput {

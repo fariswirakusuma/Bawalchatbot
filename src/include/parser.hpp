@@ -36,6 +36,7 @@ enum class CommandType {
     SaveHistory,
     Generate,
     SetParam,
+    Help,
     Exit
 };
 
