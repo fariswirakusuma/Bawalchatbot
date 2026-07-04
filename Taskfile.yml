@@ -16,6 +16,11 @@ tasks:
     cmds:
       - task: build_backend
 
+  help:
+    desc: "Menampilkan daftar seluruh perintah (tasks) yang tersedia di project"
+    cmds:
+      - task --list
+
   build_backend:
     desc: "Mengompilasi Core Engine C++ via CMake"
     cmds:
