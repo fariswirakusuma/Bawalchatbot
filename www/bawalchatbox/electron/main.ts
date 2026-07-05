@@ -1,68 +1,96 @@
-import { app, BrowserWindow } from 'electron'
-import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
+import { app, BrowserWindow, ipcMain } from 'electron';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 
-const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// FIX: Definisikan __dirname secara manual agar valid di lingkungan ES Module (.js)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// The built directory structure
-//
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.mjs
-// │
-process.env.APP_ROOT = path.join(__dirname, '..')
+const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
+const RENDERER_DIST = path.join(__dirname, '../dist');
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(__dirname, '../public') : RENDERER_DIST;
 
-// 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
-
-let win: BrowserWindow | null
+let mainWindow: BrowserWindow | null = null;
+let engineProcess: ChildProcessWithoutNullStreams | null = null;
 
 function createWindow() {
-  win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    backgroundColor: '#0f111a',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      // Pastikan mengarah ke preload.js hasil kompilasi asli
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false
     },
-  })
-
-  // Test active push message to Renderer-process.
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString())
-  })
+  });
 
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
+    mainWindow.loadURL(VITE_DEV_SERVER_URL);
+    mainWindow.webContents.openDevTools();
   } else {
-    // win.loadFile('dist/index.html')
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html')).catch((err) => {
+      console.error("CRITICAL: Gagal memuat HTML produksi ->", err);
+    });
+  }
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (engineProcess) {
+      engineProcess.kill();
+    }
+  });
+}
+
+function initBackend() {
+  // Jalur absolut mundur 3 tingkat menuju WORKSPACE_ROOT/dist/chatbox_core
+  const enginePath = path.join(__dirname, '../../../dist/chatbox_core');
+
+  try {
+    engineProcess = spawn(enginePath, []);
+
+    engineProcess.stdout.on('data', (data) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('engine-output', data.toString());
+      }
+    });
+
+    engineProcess.stderr.on('data', (data) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('engine-error', data.toString());
+      }
+    });
+
+    engineProcess.on('close', (code) => {
+      console.log(`Proses backend C++ keluar dengan kode: ${code}`);
+    });
+
+    engineProcess.on('error', (err) => {
+      console.error(`CRITICAL ERROR: Biner backend C++ tidak ditemukan atau gagal dieksekusi di: ${enginePath}`);
+      console.error(err); // Variabel sekarang dibaca untuk mencetak stack trace error asli
+    });
+
+  } catch (error) {
+    console.error("Gagal melakukan spawn process:", error);
   }
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+app.whenReady().then(() => {
+  initBackend();
+  createWindow();
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
+    app.quit();
   }
-})
+});
 
-app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+ipcMain.on('execute-command', (_event, command: string) => {
+  if (engineProcess && engineProcess.stdin.writable) {
+    engineProcess.stdin.write(command + '\n');
   }
-})
-
-app.whenReady().then(createWindow)
+});
