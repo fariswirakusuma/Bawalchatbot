@@ -43,6 +43,8 @@ tasks:
   run:
     desc: "Membuka Aplikasi Grafis Desktop (GUI Mode)"
     deps: [build_backend, build_frontend]
+    env:
+      DEBUG: '{{.DEBUG | default "false"}}'
     cmds:
       - cd {{.WWW_DIR}} && npx electron . --no-sandbox --ozone-platform=x11 --disable-gpu
 
