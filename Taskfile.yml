@@ -22,6 +22,7 @@ tasks:
   build_backend:
     desc: "Mengompilasi Core Engine C++ via CMake"
     cmds:
+      - git submodule update --init --recursive
       - cmake -S src -B {{.DIST_DIR}}
       - cmake --build {{.DIST_DIR}}
     status:
