@@ -34,7 +34,9 @@ function createWindow() {
     });
   }
 
-  mainWindow.webContents.openDevTools();
+  if (process.env.DEBUG === 'true') {
+    mainWindow.webContents.openDevTools();
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
