@@ -3,18 +3,14 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <filesystem> 
-
-
+#include <filesystem>
 
 namespace fs = std::filesystem;
 
 LlamaEngine::LlamaEngine() : model(nullptr), ctx(nullptr) {
-    // Constructor body can be empty or used for initialization if needed
 }
 
 LlamaEngine::~LlamaEngine() {
-    // Destructor: Clean up resources if necessary
     if (ctx) {
         llama_free(ctx);
         ctx = nullptr;
@@ -24,6 +20,7 @@ LlamaEngine::~LlamaEngine() {
         model = nullptr;
     }
 }
+
 bool LlamaEngine::load_model(const std::string& model_filename) {
     if (ctx) {
         llama_free(ctx);
@@ -35,26 +32,24 @@ bool LlamaEngine::load_model(const std::string& model_filename) {
     }
 
     std::string full_path = "models/" + model_filename;
-    std::cout << "[LlamaEngine] Loading model from: " << full_path << "...\n";
 
     llama_model_params model_params = llama_model_default_params();
-    
     model = llama_load_model_from_file(full_path.c_str(), model_params);
     if (!model) {
-        std::cerr << "[LlamaEngine] Error: Gagal memuat file model " << full_path << "\n";
+        std::cout << "{\"status\":\"error\",\"message\":\"Gagal memuat file model\"}\n" << std::flush;
         return false;
     }
 
     llama_context_params ctx_params = llama_context_default_params();
     ctx = llama_new_context_with_model(model, ctx_params);
     if (!ctx) {
-        std::cerr << "[LlamaEngine] Error: Gagal membuat LLaMA context.\n";
+        std::cout << "{\"status\":\"error\",\"message\":\"Gagal membuat LLaMA context\"}\n" << std::flush;
         llama_free_model(model);
         model = nullptr;
         return false;
     }
 
-    std::cout << "[LlamaEngine] Model berhasil dimuat ke memori!\n";
+    std::cout << "{\"status\":\"success\",\"message\":\"Model berhasil dimuat\"}\n" << std::flush;
     return true;
 }
 
@@ -67,7 +62,7 @@ void LlamaEngine::initialize_backend() {
 
 void LlamaEngine::execute_generation(ContextSession& session) {
     if (!model) {
-        std::cerr << "[LlamaEngine] Error: Model belum dimuat.\n";
+        std::cout << "{\"status\":\"error\",\"message\":\"Model belum dimuat\"}\n" << std::flush;
         return;
     }
 
@@ -79,12 +74,12 @@ void LlamaEngine::execute_generation(ContextSession& session) {
     llama_context_params ctx_params = llama_context_default_params();
     ctx = llama_new_context_with_model(model, ctx_params);
     if (!ctx) {
-        std::cerr << "[LlamaEngine] Error: Gagal membuat ulang context untuk inferensi.\n";
+        std::cout << "{\"status\":\"error\",\"message\":\"Gagal membuat ulang context\"}\n" << std::flush;
         return;
     }
 
     if (session.chatHistory.empty()) {
-        std::cerr << "[LlamaEngine] Error: Chat history kosong.\n";
+        std::cout << "{\"status\":\"error\",\"message\":\"Chat history kosong\"}\n" << std::flush;
         return;
     }
     std::string user_prompt = session.chatHistory.back().content;
@@ -120,7 +115,7 @@ void LlamaEngine::execute_generation(ContextSession& session) {
     }
 
     if (llama_decode(ctx, batch) != 0) {
-        std::cerr << "[LlamaEngine] Error: Gagal melakukan decode awal.\n";
+        std::cout << "{\"status\":\"error\",\"message\":\"Gagal melakukan decode awal\"}\n" << std::flush;
         llama_sampler_free(smpl);
         llama_batch_free(batch);
         return;
@@ -129,8 +124,8 @@ void LlamaEngine::execute_generation(ContextSession& session) {
     int n_cur = n_tokens;
     int n_decode_generated = 0;
     std::string ResponseOutput;
-    std::cout << "\nResponse:\n";
-    ResponseOutput += "\nResponse:\n";
+    
+    std::cout << "{\"status\":\"start\"}\n" << std::flush;
 
     while (n_decode_generated < session.maxTokens) {
         llama_token id = llama_sampler_sample(smpl, ctx, -1);
@@ -143,7 +138,18 @@ void LlamaEngine::execute_generation(ContextSession& session) {
         int n = llama_token_to_piece(vocab, id, buf, sizeof(buf), 0, false);
         if (n > 0) {
             std::string piece(buf, n);
-            std::cout << piece << std::flush;
+            
+            std::string escaped_piece = "";
+            for (char c : piece) {
+                if (c == '"') escaped_piece += "\\\"";
+                else if (c == '\\') escaped_piece += "\\\\";
+                else if (c == '\n') escaped_piece += "\\n";
+                else if (c == '\r') escaped_piece += "\\r";
+                else if (c == '\t') escaped_piece += "\\t";
+                else escaped_piece += c;
+            }
+
+            std::cout << "{\"status\":\"token\",\"content\":\"" << escaped_piece << "\"}\n" << std::flush;
             ResponseOutput += piece;
         }
 
@@ -159,13 +165,12 @@ void LlamaEngine::execute_generation(ContextSession& session) {
         n_decode_generated++;
 
         if (llama_decode(ctx, batch) != 0) {
-            std::cerr << "\n[LlamaEngine] Error: Gagal melakukan decode lanjutan.\n";
             break;
         }
     }
-    ResponseOutput += "\n\n";
+    
+    std::cout << "{\"status\":\"end\"}\n" << std::flush;
     session.chatHistory.push_back({"assistant", ResponseOutput});
-
 
     llama_sampler_free(smpl);
     llama_batch_free(batch);
@@ -173,29 +178,20 @@ void LlamaEngine::execute_generation(ContextSession& session) {
 
 bool LlamaEngine::load_history(const std::string& filename, ContextSession& session) {
     if (filename.empty()) {
-        std::cerr << "[LlamaEngine] Error: Nama file history tidak boleh kosong.\n";
         return false;
     }
-
     std::string full_path = "history/" + filename;
-    
     if (!fs::exists(full_path)) {
-        std::cerr << "[LlamaEngine] Error: File history tidak ditemukan di " << full_path << "\n";
         return false;
     }
-
     std::ifstream infile(full_path);
     if (!infile.is_open()) {
-        std::cerr << "[LlamaEngine] Error: Gagal membuka file history " << full_path << "\n";
         return false;
     }   
-
     session.chatHistory.clear();
-
     std::string line;
     while (std::getline(infile, line)) {
         if (line.empty()) continue;
-
         std::size_t colon_pos = line.find(':');
         if (colon_pos != std::string::npos) {
             Message msg;
@@ -204,33 +200,24 @@ bool LlamaEngine::load_history(const std::string& filename, ContextSession& sess
             session.chatHistory.push_back(msg);
         }
     }
-
-    std::cout << "[LlamaEngine] History berhasil dimuat dari " << full_path << ". Total pesan: " << session.chatHistory.size() << "\n";
     return true;
 }
 
 bool LlamaEngine::save_history(const std::string& filename, const ContextSession& session) {
-
     if (filename.empty()) {
-        std::cerr << "[LlamaEngine] Error: Nama file history tidak boleh kosong.\n";
         return false;
     }
-
     std::string folder_path = "history";
     if (!fs::exists(folder_path)) {
         fs::create_directories(folder_path);
     }
-
     std::string full_path = folder_path + "/" + filename;
     std::ofstream outfile(full_path);
     if (!outfile.is_open()) {
-        std::cerr << "[LlamaEngine] Error: Gagal membuka file history untuk menulis " << full_path << "\n";
         return false;
     }   
     for (const auto& msg : session.chatHistory) {
         outfile << msg.role << ":" << msg.content << "\n";
     }
-
-    std::cout << "[LlamaEngine] History berhasil disimpan ke " << full_path << "\n";
     return true;
 }
