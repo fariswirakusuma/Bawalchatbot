@@ -1,84 +1,116 @@
-![Version](https://img.shields.io/badge/Release-v0.1.0-blue)
-![C++](https://img.shields.io/badge/C++-17-orange)
-![Python](https://img.shields.io/badge/Python-3.8+-yellow)
+# BawalChatbot Engine
 
-# Bawalchatbot
-
-
-## Description :
-Bawalchatbot is an AI-Chatbot Assistant CLI application built in C++17. It utilizes a custom-built Compiler Front-End (Lexer and Parser) to interpret structured slash-commands, and integrates with `llama.cpp` as the core Llama Engine to perform local text generation using GGUF-formatted Quantized LLMs.
-
-## Features
-* **Custom Abstract Syntax Tree (AST) Parser:** Built-in Lexer and Parser capable of handling commands, variables, and parameters.
-* **Local Inference Engine:** Direct integration with `llama.cpp` utilizing modern `llama_sampler` and tokenization pipelines.
-* **Isolated Sesi Context:** Automatically manages and recreates `llama_context` per generation to prevent KV cache token position conflicts.
-* **Session Persistence:** Built-in support to save and load complete chat histories to and from the local filesystem.
-
----
-
-## Command Architecture (CLI)
-
-The application interprets user input through a structured command parser. Commands accept arguments (positional values) and parameters (key-value pairs).
-
-### Available Commands 
-
-| Command | Type | Description | Example |
-| :--- | :--- | :--- | :--- |
-| `/set_model` | Arguments | Loads a specific GGUF model file into memory. | `/set_model qwen-1_5b.gguf` |
-| `/generate` | Arguments | Triggers text generation using the currently loaded model. | `/generate Tell me a story` |
-| `/save_history` | Arguments | Saves the active session chat history to a file. | `/save_history session1` |
-| `/load_history` | Arguments | Loads a previously saved chat history from a file. | `/load_history session1` |
-| `/exit` | None | Safely destroys contexts and exits the CLI application. | `/exit` |
+<p align="center">
+  <a href="https://electronjs.org/">
+    <img src="https://img.shields.io/badge/Electron-v30+-blueviolet?style=for-the-badge&logo=electron&logoColor=white" alt="Electron v30+">
+  </a>
+  <a href="https://react.dev/">
+    <img src="https://img.shields.io/badge/React-v18+-cyan?style=for-the-badge&logo=react&logoColor=white" alt="React v18+">
+  </a>
+  <a href="https://isocpp.org/">
+    <img src="https://img.shields.io/badge/C%2B%2B-17-orange?style=for-the-badge&logo=c%2B%2B&logoColor=white" alt="C++17">
+  </a>
+  <a href="https://cmake.org/">
+    <img src="https://img.shields.io/badge/CMake-v3.15+-064F8C?style=for-the-badge&logo=cmake&logoColor=white" alt="CMake">
+  </a>
+</p>
 
 ---
 
-## Technical Specifications & Data Structures
+## 1. System Architecture
 
-### Context Session Configuration
-The engine keeps track of the conversation state and generation hyperparameters using the `ContextSession` struct:
+BawalChatbot utilizes a multi-process architecture that decouples the user interface (Frontend) from the native inference engine (C++ Backend). This design ensures that the UI thread remains highly responsive and free from blocking operations via a non-blocking event loop.
 
-```cpp
-struct Message {
-    std::string role;    
-    std::string content;
-};
 
-struct ContextSession {
-    std::string systemPrompt;
-    float currentTemperature = 0.7f;
-    int maxTokens = 256;
-    int topK = 40;
-    float topP = 0.95f;
-    float repeatPenalty = 1.1f;
-    bool shouldExit = false;
-    std::vector<Message> chatHistory;
-    std::string modelName; 
-};
+---
+
+## 2. Frontend Architecture (Electron & React)
+
+The application frontend is located in the `www/bawalchatbox` directory and is built using a modern desktop web stack:
+*   **Electron (v30+)**: Serves as the desktop shell runtime, wrapping the web application and providing secure access to low-level operating system APIs.
+*   **React (v18+) & TypeScript**: Used to build reactive, structured, and type-safe user interface components.
+*   **TailwindCSS**: Used for utility-first styling, compiled rapidly via LightningCSS.
+
+### IPC (Inter-Process Communication) Data Flow
+1.  **User Initiation**: The user inputs a prompt or command in the React interface.
+2.  **Renderer to Main**: React dispatches the message payload to the Electron Main process using `window.electron.ipcRenderer.send('generate-text', payload)`.
+3.  **Main to Native**: The Electron Main process receives the message, validates the parameters, and writes the structured data to the standard input (`stdin`) stream of the running C++ subprocess.
+4.  **Native to Main (Streaming)**: The C++ engine processes tokens incrementally and writes the output to the standard output (`stdout`) stream.
+5.  **Main to Renderer**: Electron Main captures these data chunks from `stdout` in real-time and forwards them to the Renderer process via `webContents.send('token-stream', chunk)`.
+6.  **UI Update**: React listens to these stream events and dynamically updates the component state to render a real-time typewriter effect.
+
+---
+
+## 3. Core C++ Inference Engine
+
+The native backend located in the `src` directory is responsible for executing local language models efficiently without heavy external runtime dependencies.
+
+### llama.cpp Integration & Memory Management
+*   **llama.cpp**: The inference engine is integrated directly at the C++ source level to execute GGUF format models optimally on local CPU/GPU architectures.
+*   **Zero-Copy Memory Mapping (mmap)**: The C++ engine maps the GGUF model file directly into the virtual address space of the process using `mmap` system calls (or `VirtualAlloc` on Windows). This prevents duplicate memory allocations, accelerates application startup times, and allows the operating system to manage memory pages efficiently via page caching.
+
+### Bidirectional Communication Protocol (stdio Streams)
+Communication between the Node.js process (Electron Main) and the C++ executable is handled via standard pipes:
+*   **stdin**: Used by Electron Main to send control instructions and structured text prompts to the C++ engine.
+*   **stdout**: Used by the C++ engine to stream inferred tokens back to Electron Main in raw or structured JSON format.
+*   **stderr**: Reserved exclusively for diagnostic logs, performance metrics (tokens per second), and system initialization status to keep the primary data path on `stdout` clean.
+
+---
+
+## 4. CLI AI Agent Subsystem
+
+The AI Agent subsystem is controlled externally through the `agent_gateway.py` script. This script acts as an automation orchestrator for code modifications and documentation updates within the repository.
+
 ```
-## Installation & Compilation
-### Prerequisites
-* C++17 compliant compiler (GCC 9+, Clang 10+, or MSVC 2019+)
-* CMake (Version 3.16 or higher)
-* GGUF Model Files (placed inside a models/ directory)
-
-
-## Build & Automation Management
-
-This project uses `task` (Taskfile.dev) as its task runner and automation tool. You can inspect and trigger all available workflows from the root directory.
-
-### Listing Available Commands
-To view the comprehensive list of automation tasks alongside their descriptions directly in your terminal, execute:
-```bash
-task help
++-------------------------------------------------------------------------+
+|                          agent_gateway.py                               |
+|                                                                         |
+|  +--------------------+      Workflow JSON      +--------------------+  |
+|  |   Read Workflow    | <---------------------> | .gemini/workflows/ |  |
+|  +--------------------+                         +--------------------+  |
+|            |                                                            |
+|            v                                                            |
+|  +--------------------+      API Request        +--------------------+  |
+|  |  Gateway Connection| <---------------------> |   OpenRouter API   |  |
+|  +--------------------+                         +--------------------+  |
+|            |                                                            |
+|            v                                                            |
+|  +--------------------+                                                 |
+|  |  Payload Analysis  | (Reads multi-file arrays & patch instructions)  |
+|  +--------------------+                                                 |
+|            |                                                            |
+|            v                                                            |
+|  +--------------------+      Backup File        +--------------------+  |
+|  |  Fallback System   | ----------------------> |     Create .bak    |  |
+|  +--------------------+                         +--------------------+  |
+|            |                                                            |
+|            v                                                            |
+|  +--------------------+      Regex Match        +--------------------+  |
+|  |   Code Patching    | ----------------------> |   Write New Code   |  |
+|  +--------------------+                         +--------------------+  |
++-------------------------------------------------------------------------+
 ```
-Essential Task Instructions
-* Compile Backend Core: `task default` or `task build_backend`
 
-* Launch Terminal CLI: `task run_cli`
+### Operational Mechanism of `agent_gateway.py`
+1.  **Workflow Parsing**: The script reads JSON configuration files from the `.gemini/workflows/` directory to determine target files and modification instructions.
+2.  **OpenRouter API Consumption**: Sends system prompts, current code context, and modification instructions to the AI model via the OpenRouter endpoint using secure token authentication.
+3.  **Multi-File Processing**: Analyzes and modifies multiple files simultaneously within a single execution cycle to maintain cross-file reference consistency.
+4.  **Auto-Save & Code Patching**:
+    *   Before applying modifications, the script creates a backup copy of the target files with a `.bak` extension as a fallback mechanism.
+    *   Uses precise regular expressions (Regex) to locate specific code blocks that require replacement.
+    *   If the writing or compilation process fails after patching, the script automatically restores the original files from the `.bak` backups to prevent source code corruption.
 
-* Download Default LLM Model: `task install_llama`
+---
 
-* Purge Build Artifacts: `task clean`
+## 5. Automation Command Reference (Taskfile)
 
-* Automated Agent Workflows: `task prompt_debug` or `task prompt_debug_gemini`
+This project utilizes a Taskfile runner to automate the development, compilation, testing, and maintenance lifecycles. Below is the list of available commands:
 
+| Task Command | Environment Variables | Function & Description |
+| :--- | :--- | :--- |
+| `task build:core` | `CMAKE_BUILD_TYPE` | Compiles the Core C++ Inference Engine using CMake and the system's native compiler. |
+| `task build:ui` | `NODE_ENV` | Compiles the React + Tailwind frontend assets in the `www/bawalchatbox` directory using Vite. |
+| `task run` | `DEBUG` | Runs the Electron application in development mode. If `DEBUG=true`, developer tools open automatically and verbose logging is enabled. |
+| `task test:core` | - | Runs native C++ unit tests to verify parser functionality and llama.cpp integration. |
+| `task agent` | `OPENROUTER_API_KEY`, `WORKFLOW` | Executes the AI agent subsystem (`agent_gateway.py`) by loading a specified workflow (e.g., `WORKFLOW=ui_builder`). |
+| `task clean` | - | Cleans the C++ build directories (`build/`, `bin/`) and removes frontend distribution folders (`dist/`, `node_modules/`). |
