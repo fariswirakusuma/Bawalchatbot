@@ -43,6 +43,8 @@ tasks:
   run:
     desc: "Membuka Aplikasi Grafis Desktop (GUI Mode)"
     deps: [build_backend, build_frontend]
+    env:
+      DEBUG: '{{.DEBUG | default "false"}}'
     cmds:
       - cd {{.WWW_DIR}} && npx electron . --no-sandbox --ozone-platform=x11 --disable-gpu
 
@@ -57,3 +59,23 @@ tasks:
     cmds:
       - rm -rf {{.DIST_DIR}}
       - rm -rf {{.WWW_DIR}}/dist-electron {{.WWW_DIR}}/dist
+
+  agent:
+    desc: "Menjalankan AI Agent via OpenRouter (Mendukung array berkas, auto-save & workflow)"
+    vars:
+      MODE: '{{.MODE | default "debugger"}}'
+      MODEL: '{{.MODEL | default "flash-3.5"}}'
+      FILES: '{{.FILES | default ""}}'
+      PROMPT: '{{.PROMPT}}'
+      TOKEN: '{{.TOKEN | default 4000}}'
+    cmds:
+      - python3 scripts/agent_gateway.py --mode "{{.MODE}}" --model-type "{{.MODEL}}" --update-files {{.FILES}} --prompt "{{.PROMPT}}" --token {{.TOKEN}}
+
+  agent_gai:
+    desc: "Menjalankan AI Agent via Google GenAI murni (Tanpa auto-save)"
+    vars:
+      MODE: '{{.MODE | default "debugger"}}'
+      MODEL: '{{.MODEL | default "pro"}}'
+      PROMPT: '{{.PROMPT}}'
+    cmds:
+      - python3 scripts/agent_gateway_gAI.py --mode "{{.MODE}}" --model-type "{{.MODEL}}" --prompt "{{.PROMPT}}"
