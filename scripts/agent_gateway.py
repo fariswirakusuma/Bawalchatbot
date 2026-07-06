@@ -166,7 +166,7 @@ def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_fi
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini Agent Gateway Engine")
-    parser.add_argument("--mode", type=str, required=True, help="Mode alur kerja (contoh: debugger, web_builder)")
+    parser.add_argument("--mode", type=str, required=True, help="Mode alur kerja (contoh: debugger, web_builder,documentation)")
     parser.add_argument("--prompt", type=str, required=True, help="Prompt atau log error mentah untuk dianalisis")
     parser.add_argument("--model-type", type=str, default="pro", choices=["pro", "flash", "flash-3.5", "flash-3.1", "pro-3.1", "pro-3.5"], 
                         help="Tipe model Gemini yang digunakan: pro atau flash (default: pro)")
