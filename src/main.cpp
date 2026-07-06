@@ -63,8 +63,9 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                         std::string help_msg = "Commands:\\n/set_model --name <model>\\n/set_prompt --text <prompt>\\n/load_history --file <file>\\n/save_history --file <file>\\n/generate [text]\\n/set_param --param <val>\\n/exit";
                         std::cout << "{\"status\":\"info\",\"message\":\"" << help_msg << "\"}\n" << std::flush;
                     } else {
-                        // Output Teks murni untuk Terminal
                         std::cout << "Available Commands:\n"
+                                  << "  /help                           : Show this help message.\n"
+                                  << "  /add_url_model --name <model_name> : add a specific model from a URL.\n"
                                   << "  /set_model --name <model_name> : Load a specific model.\n"
                                   << "  /set_prompt --text <prompt>    : Set the system prompt.\n"
                                   << "  /load_history --file <filename> : Load chat history from a file.\n"

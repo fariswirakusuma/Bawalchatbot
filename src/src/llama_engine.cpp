@@ -21,6 +21,29 @@ LlamaEngine::~LlamaEngine() {
     }
 }
 
+bool LlamaEngine::add_url_model(const std::string& model_name, const std::string& model_url) {
+    std::string models_dir = "models";
+    if (!fs::exists(models_dir)) {
+        fs::create_directory(models_dir);
+    }
+
+    std::string model_path = models_dir + "/" + model_name;
+    if (fs::exists(model_path)) {
+        std::cout << "{\"status\":\"error\",\"message\":\"Model already exists: " << model_name << "\"}\n" << std::flush;
+        return false;
+    }
+
+    std::string command = "wget -O " + model_path + " " + model_url;
+    int ret_code = system(command.c_str());
+    if (ret_code != 0) {
+        std::cout << "{\"status\":\"error\",\"message\":\"Failed to download model from URL: " << model_url << "\"}\n" << std::flush;
+        return false;
+    }
+
+    std::cout << "{\"status\":\"success\",\"message\":\"Model downloaded successfully: " << model_name << "\"}\n" << std::flush;
+    return true;
+}
+
 bool LlamaEngine::load_model(const std::string& model_filename) {
     if (ctx) {
         llama_free(ctx);

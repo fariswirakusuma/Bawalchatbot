@@ -30,6 +30,7 @@ enum class NodeType {
 
 enum class CommandType {
     Unknown,
+    AddUrlModel,
     SetModel,
     SetPrompt,
     LoadHistory,

@@ -247,6 +247,7 @@ std::unique_ptr<LiteralTextNode> Parser::parse_literal_text() {
 
 CommandType Parser::get_command_type(const std::string& command_name) const {
     if (command_name == "set-model" || command_name == "set_model") return CommandType::SetModel;
+    if (command_name == "add-url-model" || command_name == "add_url_model") return CommandType::AddUrlModel;
     if (command_name == "set-prompt" || command_name == "set_prompt") return CommandType::SetPrompt;
     if (command_name == "load-history" || command_name == "load_history") return CommandType::LoadHistory;
     if (command_name == "save-history" || command_name == "save_history") return CommandType::SaveHistory;
