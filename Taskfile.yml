@@ -59,3 +59,23 @@ tasks:
     cmds:
       - rm -rf {{.DIST_DIR}}
       - rm -rf {{.WWW_DIR}}/dist-electron {{.WWW_DIR}}/dist
+
+  agent:
+    desc: "Menjalankan AI Agent via OpenRouter (Mendukung auto-save & workflow ui_builder/debugger)"
+    vars:
+      MODE: '{{.MODE | default "debugger"}}'
+      MODEL: '{{.MODEL | default "flash-3.5"}}'
+      FILE: '{{.FILE | default ""}}'
+      PROMPT: '{{.PROMPT}}'
+      TOKEN: '{{.TOKEN | default 4000}}'
+    cmds:
+      - python3 scripts/agent_gateway.py --mode "{{.MODE}}" --model-type "{{.MODEL}}" --update-file "{{.FILE}}" --prompt "{{.PROMPT}}" --token {{.TOKEN}}
+
+  agent_gai:
+    desc: "Menjalankan AI Agent via Google GenAI murni (Tanpa auto-save)"
+    vars:
+      MODE: '{{.MODE | default "debugger"}}'
+      MODEL: '{{.MODEL | default "pro"}}'
+      PROMPT: '{{.PROMPT}}'
+    cmds:
+      - python3 scripts/agent_gateway_gAI.py --mode "{{.MODE}}" --model-type "{{.MODEL}}" --prompt "{{.PROMPT}}"
