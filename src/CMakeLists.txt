@@ -12,7 +12,7 @@ add_subdirectory(../third_party/llama.cpp llama_build)
 
 include_directories(include)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "main_cli.cpp")
+file(GLOB_RECURSE SOURCES "src/*.cpp" "main.cpp")
 
 add_executable(chatbox_core ${SOURCES})
 
