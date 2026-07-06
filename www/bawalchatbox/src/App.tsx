@@ -122,7 +122,28 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Header Baru dengan Judul, Versi, dan Animasi */}
+      <header className="app-header">
+        <div className="logo-container">
+          <h1 className="app-title">
+            Bawal<span className="title-highlight">chatbox</span>
+          </h1>
+          <span className="app-version">v0.2.0</span>
+        </div>
+        <div className="header-status">
+          <span className="status-dot"></span>
+          <span className="status-text">Engine Ready</span>
+        </div>
+      </header>
+
       <div className="chat-area">
+        {messages.length === 0 && (
+          <div className="welcome-container">
+            <div className="welcome-icon">🐟</div>
+            <h2>Selamat Datang di Bawalchatbox</h2>
+            <p>Ketik perintah seperti <span className="cmd-highlight">/help</span> atau langsung kirim pesan untuk memulai interaksi dengan model lokal.</p>
+          </div>
+        )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`message-row ${msg.role === 'user' ? 'message-user' : 'message-bot'}`}>
             <div className={`message-bubble ${
