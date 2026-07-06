@@ -4,6 +4,9 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <curl/curl.h>
+#include <cstdlib>
+#include <sys/stat.h>
 
 namespace fs = std::filesystem;
 
@@ -21,27 +24,38 @@ LlamaEngine::~LlamaEngine() {
     }
 }
 
-bool LlamaEngine::add_url_model(const std::string& model_name, const std::string& model_url) {
-    std::string models_dir = "models";
-    if (!fs::exists(models_dir)) {
-        fs::create_directory(models_dir);
+void LlamaEngine::add_url_model(const std::string& model_name, const std::string& model_url) {
+    if (model_name.empty() || model_url.empty()) {
+        std::cerr << "{\"status\":\"error\",\"message\":\"Empty parameters.\"}\n" << std::endl;
+        return;
     }
 
-    std::string model_path = models_dir + "/" + model_name;
-    if (fs::exists(model_path)) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Model already exists: " << model_name << "\"}\n" << std::flush;
-        return false;
+    try {
+        if (!fs::exists("models")) {
+            fs::create_directory("models");
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "{\"status\":\"error\",\"message\":\"Failed to create directory: " << e.what() << "\"}\n" << std::endl;
+        return;
     }
 
-    std::string command = "wget -O " + model_path + " " + model_url;
-    int ret_code = system(command.c_str());
-    if (ret_code != 0) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Failed to download model from URL: " << model_url << "\"}\n" << std::flush;
-        return false;
-    }
+    std::string output_path = "models/" + model_name;
+    std::string command;
 
-    std::cout << "{\"status\":\"success\",\"message\":\"Model downloaded successfully: " << model_name << "\"}\n" << std::flush;
-    return true;
+    #ifdef _WIN32
+        command = "curl -L -o " + output_path + " \"" + model_url + "\"";
+    #else
+        command = "wget -c --show-progress -O " + output_path + " \"" + model_url + "\"";
+    #endif
+
+    std::cout << "{\"status\":\"processing\",\"message\":\"Downloading model to " << output_path << "...\"}\n" << std::flush;
+
+    int result = std::system(command.c_str());
+
+    if (result != 0) {
+        std::cerr << "{\"status\":\"error\",\"message\":\"Download execution failed with exit code " << result << "\"}\n" << std::endl;
+        return;
+    }
 }
 
 bool LlamaEngine::load_model(const std::string& model_filename) {
@@ -83,9 +97,10 @@ void LlamaEngine::initialize_backend() {
     }
 }
 
-void LlamaEngine::execute_generation(ContextSession& session) {
+void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     if (!model) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Model belum dimuat\"}\n" << std::flush;
+        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Model belum dimuat\"}\n" << std::flush;
+        else std::cerr << "Error: Model belum dimuat\n";
         return;
     }
 
@@ -97,12 +112,14 @@ void LlamaEngine::execute_generation(ContextSession& session) {
     llama_context_params ctx_params = llama_context_default_params();
     ctx = llama_new_context_with_model(model, ctx_params);
     if (!ctx) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Gagal membuat ulang context\"}\n" << std::flush;
+        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Gagal membuat ulang context\"}\n" << std::flush;
+        else std::cerr << "Error: Gagal membuat ulang context\n";
         return;
     }
 
     if (session.chatHistory.empty()) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Chat history kosong\"}\n" << std::flush;
+        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Chat history kosong\"}\n" << std::flush;
+        else std::cerr << "Error: Chat history kosong\n";
         return;
     }
     std::string user_prompt = session.chatHistory.back().content;
@@ -138,7 +155,8 @@ void LlamaEngine::execute_generation(ContextSession& session) {
     }
 
     if (llama_decode(ctx, batch) != 0) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Gagal melakukan decode awal\"}\n" << std::flush;
+        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Gagal melakukan decode awal\"}\n" << std::flush;
+        else std::cerr << "Error: Gagal melakukan decode awal\n";
         llama_sampler_free(smpl);
         llama_batch_free(batch);
         return;
@@ -148,7 +166,9 @@ void LlamaEngine::execute_generation(ContextSession& session) {
     int n_decode_generated = 0;
     std::string ResponseOutput;
     
-    std::cout << "{\"status\":\"start\"}\n" << std::flush;
+    if (is_ui_mode) {
+        std::cout << "{\"status\":\"start\"}\n" << std::flush;
+    }
 
     while (n_decode_generated < session.maxTokens) {
         llama_token id = llama_sampler_sample(smpl, ctx, -1);
@@ -162,17 +182,21 @@ void LlamaEngine::execute_generation(ContextSession& session) {
         if (n > 0) {
             std::string piece(buf, n);
             
-            std::string escaped_piece = "";
-            for (char c : piece) {
-                if (c == '"') escaped_piece += "\\\"";
-                else if (c == '\\') escaped_piece += "\\\\";
-                else if (c == '\n') escaped_piece += "\\n";
-                else if (c == '\r') escaped_piece += "\\r";
-                else if (c == '\t') escaped_piece += "\\t";
-                else escaped_piece += c;
+            if (is_ui_mode) {
+                std::string escaped_piece = "";
+                for (char c : piece) {
+                    if (c == '"') escaped_piece += "\\\"";
+                    else if (c == '\\') escaped_piece += "\\\\";
+                    else if (c == '\n') escaped_piece += "\\n";
+                    else if (c == '\r') escaped_piece += "\\r";
+                    else if (c == '\t') escaped_piece += "\\t";
+                    else escaped_piece += c;
+                }
+                std::cout << "{\"status\":\"token\",\"content\":\"" << escaped_piece << "\"}\n" << std::flush;
+            } else {
+                // Jalur CLI murni: Keluarkan karakter mentah langsung ke layar
+                std::cout << piece << std::flush;
             }
-
-            std::cout << "{\"status\":\"token\",\"content\":\"" << escaped_piece << "\"}\n" << std::flush;
             ResponseOutput += piece;
         }
 
@@ -192,7 +216,12 @@ void LlamaEngine::execute_generation(ContextSession& session) {
         }
     }
     
-    std::cout << "{\"status\":\"end\"}\n" << std::flush;
+    if (is_ui_mode) {
+        std::cout << "{\"status\":\"end\"}\n" << std::flush;
+    } else {
+        std::cout << "\n";
+    }
+
     session.chatHistory.push_back({"assistant", ResponseOutput});
 
     llama_sampler_free(smpl);

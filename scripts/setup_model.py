@@ -39,8 +39,6 @@ def define_model(model_url:str):
         sys.exit(1)
 
 if __name__ == "__main__":
-    
-
     parser = argparse.ArgumentParser(description="Setup Qwen model for ChatboxAI")
     parser.add_argument("--model-url", type=str, help="URL of the model to download")
     

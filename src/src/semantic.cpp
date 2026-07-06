@@ -69,6 +69,9 @@ bool SemanticAnalyzer::analyze_and_apply(const CommandNode* ast_root, ContextSes
         case CommandType::SetModel:
             success = process_set_model_command(*ast_root, session);
             break;
+        case CommandType::AddUrlModel:
+            success = process_add_url_model_command(*ast_root, session);
+            break;
         case CommandType::SetPrompt:
             success = process_set_prompt_command(*ast_root, session);
             break;
@@ -165,6 +168,40 @@ bool SemanticAnalyzer::process_set_prompt_command(const CommandNode& node, Conte
     return false;
 }
 
+bool SemanticAnalyzer::process_add_url_model_command(const CommandNode& node, ContextSession& session) {
+    if (node.arguments.size() < 2) {
+        add_error("Semantic Error: 'add_url_model' command requires two arguments: <model_name> and <model_url>.");
+        return false;
+    }
+
+    std::string model_name;
+    std::string model_url;
+    if (node.arguments[0]->type == NodeType::LiteralText) {
+        const LiteralTextNode* nameNode = static_cast<const LiteralTextNode*>(node.arguments[0].get());
+        model_name = nameNode->text;
+    } else {
+        add_error("Semantic Error: 'add_url_model' command expects a literal text for the model name at argument 1.");
+        return false;
+    }
+
+    if (node.arguments[1]->type == NodeType::LiteralText) {
+        const LiteralTextNode* urlNode = static_cast<const LiteralTextNode*>(node.arguments[1].get());
+        model_url = urlNode->text;
+    } else {
+        add_error("Semantic Error: 'add_url_model' command expects a literal text for the model URL at argument 2.");
+        return false;
+    }
+    if (!model_name.empty() && !model_url.empty()) {
+        model_name.erase(std::remove(model_name.begin(), model_name.end(), '\"'), model_name.end());
+        model_url.erase(std::remove(model_url.begin(), model_url.end(), '\"'), model_url.end());
+
+        session.modelName = model_name; 
+        return true;
+    }
+
+    return false;
+}
+
 bool SemanticAnalyzer::process_load_history_command(const CommandNode& node, ContextSession& session) {
     if (node.arguments.empty() && node.parameters.empty()) {
         add_error("Semantic Error: 'load_history' command requires a filename.");
@@ -231,7 +268,6 @@ bool SemanticAnalyzer::process_generate_command(const CommandNode& node, Context
     bool success = true;
     std::string combined_user_prompt = "";
 
-    // PERBAIKAN UTAMA: Gabungkan semua argumen teks menggunakan spasi
     for (const auto& argNodePtr : node.arguments) {
         if (argNodePtr->type == NodeType::LiteralText) {
             const LiteralTextNode* textNode = static_cast<const LiteralTextNode*>(argNodePtr.get());

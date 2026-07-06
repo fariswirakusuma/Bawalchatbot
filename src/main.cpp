@@ -49,6 +49,32 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                 if (command_node->commandName == "set_model") {
                     model_load_requested = true; 
                 }
+                else if (command_node->commandName == "add_url_model") {
+                    if (command_node->arguments.size() >= 2) {
+                        auto name_node = dynamic_cast<LiteralTextNode*>(command_node->arguments[0].get());
+                        auto url_node = dynamic_cast<LiteralTextNode*>(command_node->arguments[1].get());
+
+                        if (name_node && url_node) {
+                            std::string model_name = name_node->text;
+                            std::string model_url = url_node->text;
+
+                            model_name.erase(std::remove(model_name.begin(), model_name.end(), '\"'), model_name.end());
+                            model_url.erase(std::remove(model_url.begin(), model_url.end(), '\"'), model_url.end());
+
+                            session.modelName = model_name;
+                            
+                            engine.add_url_model(model_name, model_url);
+                            std::cout << "{\"status\":\"success\",\"message\":\"Command executed: Model " 
+                                    << model_name << " has been downloaded and loaded into session.\"}\n" 
+                                    << std::flush;
+                        } else {
+                            std::cout << "{\"status\":\"error\",\"message\":\"Arguments extraction failed.\"}\n" << std::flush;
+                        }
+                    } else {
+                        std::cout << "{\"status\":\"error\",\"message\":\"Missing required arguments.\"}\n" << std::flush;
+                    }
+                }
+
                 else if (command_node->commandName == "generate") {
                     generation_requested = true; 
                 }
@@ -59,20 +85,19 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                 }
                 else if (command_node->commandName == "help") {
                     if (is_ui_mode) {
-                        // Output JSON untuk ditangkap oleh React
                         std::string help_msg = "Commands:\\n/set_model --name <model>\\n/set_prompt --text <prompt>\\n/load_history --file <file>\\n/save_history --file <file>\\n/generate [text]\\n/set_param --param <val>\\n/exit";
                         std::cout << "{\"status\":\"info\",\"message\":\"" << help_msg << "\"}\n" << std::flush;
                     } else {
                         std::cout << "Available Commands:\n"
-                                  << "  /help                           : Show this help message.\n"
+                                  << "  /help                              : Show this help message.\n"
                                   << "  /add_url_model --name <model_name> : add a specific model from a URL.\n"
-                                  << "  /set_model --name <model_name> : Load a specific model.\n"
-                                  << "  /set_prompt --text <prompt>    : Set the system prompt.\n"
-                                  << "  /load_history --file <filename> : Load chat history from a file.\n"
-                                  << "  /save_history --file <filename> : Save chat history to a file.\n"
-                                  << "  /generate [text]                : Generate a response based on context.\n"
-                                  << "  /set_param --param <value>      : Set parameters (temp, top_k, etc.).\n"
-                                  << "  /exit                           : Exit the application.\n";
+                                  << "  /set_model --name <model_name>     : Load a specific model.\n"
+                                  << "  /set_prompt --text <prompt>        : Set the system prompt.\n"
+                                  << "  /load_history --file <filename>    : Load chat history from a file.\n"
+                                  << "  /save_history --file <filename>    : Save chat history to a file.\n"
+                                  << "  /generate [text]                   : Generate a response based on context.\n"
+                                  << "  /set_param --param <value>         : Set parameters (temp, top_k, etc.).\n"
+                                  << "  /exit                              : Exit the application.\n";
                     }
                 }
                 else if (command_node->commandName == "save_history") { 
@@ -107,7 +132,7 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
 
     if (all_commands_applied_successfully) { 
         if (model_load_requested) engine.load_model(session.modelName); 
-        if (generation_requested) engine.execute_generation(session); 
+        if (generation_requested) engine.execute_generation(session, is_ui_mode); 
     }
 }
 
