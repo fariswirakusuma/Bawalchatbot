@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 
-// FIX: Definisikan __dirname secara manual agar valid di lingkungan ES Module (.js)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -20,8 +19,7 @@ function createWindow() {
     height: 800,
     backgroundColor: '#0f111a',
     webPreferences: {
-      // Pastikan mengarah ke preload.js hasil kompilasi asli
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false
@@ -30,12 +28,13 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html')).catch((err) => {
       console.error("CRITICAL: Gagal memuat HTML produksi ->", err);
     });
   }
+
+  mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -46,12 +45,10 @@ function createWindow() {
 }
 
 function initBackend() {
-  // Jalur absolut mundur 3 tingkat menuju WORKSPACE_ROOT/dist/chatbox_core
   const enginePath = path.join(__dirname, '../../../dist/chatbox_core');
-
+  const workspaceRoot = path.join(__dirname, '../../../');
   try {
-    engineProcess = spawn(enginePath, []);
-
+    engineProcess = spawn(enginePath, [], { cwd: workspaceRoot });
     engineProcess.stdout.on('data', (data) => {
       if (mainWindow) {
         mainWindow.webContents.send('engine-output', data.toString());
@@ -70,7 +67,7 @@ function initBackend() {
 
     engineProcess.on('error', (err) => {
       console.error(`CRITICAL ERROR: Biner backend C++ tidak ditemukan atau gagal dieksekusi di: ${enginePath}`);
-      console.error(err); // Variabel sekarang dibaca untuk mencetak stack trace error asli
+      console.error(err); 
     });
 
   } catch (error) {

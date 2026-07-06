@@ -1,20 +1,28 @@
 import { defineConfig } from 'vite'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
+    tailwindcss(),
+
     electron({
       main: {
         entry: 'electron/main.ts',
         vite: {
           build: {
-            lib: {
-              entry: 'electron/main.ts',
-              formats: ['esm'],
-              fileName: () => 'main.js'
+            rollupOptions: {
+              output: {
+                entryFileNames: 'main.js'
+              }
             }
           }
         }
@@ -25,8 +33,8 @@ export default defineConfig({
           build: {
             rollupOptions: {
               output: {
-                format: 'esm',
-                entryFileNames: 'preload.js'
+                format: 'cjs', 
+                entryFileNames: 'preload.cjs'
               }
             }
           }

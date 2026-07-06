@@ -31,7 +31,7 @@ bool LlamaEngine::load_model(const std::string& model_filename) {
         model = nullptr;
     }
 
-    std::string full_path = "model/" + model_filename;
+    std::string full_path = "models/" + model_filename;
 
     llama_model_params model_params = llama_model_default_params();
     model = llama_load_model_from_file(full_path.c_str(), model_params);

@@ -44,7 +44,7 @@ tasks:
     desc: "Membuka Aplikasi Grafis Desktop (GUI Mode)"
     deps: [build_backend, build_frontend]
     cmds:
-      - cd {{.WWW_DIR}} && npx electron . --no-sandbox --ozone-platform=x11 2>&1 | grep -v "Gtk-WARNING"
+      - cd {{.WWW_DIR}} && npx electron . --no-sandbox --ozone-platform=x11 --disable-gpu
 
   dev:
     desc: "Menjalankan aplikasi dalam mode development"

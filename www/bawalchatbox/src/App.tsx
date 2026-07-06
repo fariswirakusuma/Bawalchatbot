@@ -1,94 +1,177 @@
-import { useState, useEffect, useRef } from 'react'
-
-interface Message {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
+import React, { useState, useEffect, useRef } from 'react';
+import './style/App.css'; 
 
 declare global {
   interface Window {
     electronAPI: {
-      sendToBackend: (cmd: string) => void
-      onBackendOut: (callback: (data: string) => void) => void
-      onBackendErr: (callback: (data: string) => void) => void
-    }
+      sendToBackend: (cmd: string) => void;
+      onBackendOut: (callback: (data: string) => void) => () => void;
+      onBackendErr: (callback: (data: string) => void) => () => void;
+    };
   }
 }
 
-function App(): JSX.Element {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const chatEndRef = useRef<HTMLDivElement>(null)
+const VALID_COMMANDS = [
+  '/help', '/generate', '/set_model', '/set_prompt', 
+  '/load_history', '/save_history', '/set_param', '/exit'
+];
+
+const formatMessageWithRegex = (text: string) => {
+  if (!text) return null;
+  const commandRegex = /(\/[a-zA-Z0-9_]+)/g;
+  const parts = text.split(commandRegex);
+
+  return parts.map((part, index) => {
+    if (part.match(commandRegex)) {
+      return (
+        <span key={index} className="cmd-highlight">
+          {part}
+        </span>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+};
+
+export default function App() {
+  const [inputText, setInputText] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [messages, setMessages] = useState<{role: string, content: string}[]>([]);
+  const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    window.electronAPI.onBackendOut((data: string) => {
-      setMessages((prev) => {
-        if (prev.length === 0 || prev[prev.length - 1].role !== 'assistant') {
-          return [...prev, { role: 'assistant', content: data }]
+    endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      const removeOutListener = window.electronAPI.onBackendOut((data: string) => {
+        const lines = data.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            
+            if (parsed.status === 'info' || parsed.status === 'error') {
+              setMessages(prev => [...prev, { 
+                role: parsed.status === 'error' ? 'error' : 'system', 
+                content: parsed.message.replace(/\\n/g, '\n')
+              }]);
+            } 
+            else if (parsed.status === 'start') {
+              setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+            } 
+            else if (parsed.status === 'token') {
+              setMessages(prev => {
+                const newMsgs = [...prev];
+                const lastIdx = newMsgs.length - 1;
+                if (lastIdx >= 0 && newMsgs[lastIdx].role === 'assistant') {
+                  newMsgs[lastIdx].content += parsed.content.replace(/\\n/g, '\n');
+                }
+                return newMsgs;
+              });
+            }
+          } catch (e) {
+            console.log("Log Non-JSON C++:", line);
+          }
         }
-        const updated = [...prev]
-        updated[updated.length - 1].content += data
-        return updated
-      })
-    })
+      });
 
-    window.electronAPI.onBackendErr((data: string) => {
-      setMessages((prev) => [...prev, { role: 'system', content: data }])
-    })
-  }, [])
+      const removeErrListener = window.electronAPI.onBackendErr((data: string) => {
+        console.error("Backend Error:", data);
+      });
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+      // Cleanup listener saat komponen unmount
+      return () => {
+        removeOutListener();
+        removeErrListener();
+      };
+    }
+  }, []);
 
-  const handleSend = (): void => {
-    if (!input.trim()) return
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputText(value);
 
-    setMessages((prev) => [...prev, { role: 'user', content: input }])
-    window.electronAPI.sendToBackend(input)
-    setInput('')
-  }
+    if (value.startsWith('/') && !value.includes(' ')) {
+      const matches = VALID_COMMANDS.filter(cmd => cmd.startsWith(value));
+      setSuggestions(matches);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const applySuggestion = (cmd: string) => {
+    setInputText(cmd + ' ');
+    setSuggestions([]);
+    document.getElementById('chat-input')?.focus();
+  };
+
+  const handleSend = () => {
+    if (!inputText.trim()) return;
+    
+    setMessages(prev => [...prev, { role: 'user', content: inputText }]);
+    
+    if (window.electronAPI) {
+      window.electronAPI.sendToBackend(inputText);
+    }
+    
+    setInputText('');
+    setSuggestions([]);
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-gray-100 font-sans">
-      <header className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
-        <h1 className="text-xl font-bold text-teal-400 tracking-wide">BawalChatbot</h1>
-      </header>
-
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="app-container">
+      <div className="chat-area">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-2xl p-3 rounded-lg whitespace-pre-wrap shadow-md ${
-              msg.role === 'user' ? 'bg-teal-700 text-white' :
-              msg.role === 'system' ? 'bg-red-950/80 text-red-200 border border-red-800' : 'bg-gray-800 text-gray-200'
+          <div key={idx} className={`message-row ${msg.role === 'user' ? 'message-user' : 'message-bot'}`}>
+            <div className={`message-bubble ${
+              msg.role === 'user' ? 'bubble-user' : 
+              msg.role === 'error' ? 'bubble-error' : 'bubble-system'
             }`}>
-              {msg.content}
+              {formatMessageWithRegex(msg.content)}
             </div>
           </div>
         ))}
-        <div ref={chatEndRef} />
-      </main>
+        <div ref={endOfMessagesRef} />
+      </div>
 
-      <footer className="p-4 bg-gray-800 border-t border-gray-700">
-        <div className="flex space-x-2">
+      <div className="input-area">
+        {suggestions.length > 0 && (
+          <div className="suggestion-box">
+            {suggestions.map((cmd, idx) => (
+              <button
+                key={idx}
+                onClick={() => applySuggestion(cmd)}
+                className="suggestion-btn"
+              >
+                {cmd}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="input-wrapper">
           <input
+            id="chat-input"
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ketik perintah..."
-            className="flex-1 px-4 py-2 bg-gray-900 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-teal-500 transition-colors"
+            value={inputText}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSend();
+              if (e.key === 'Tab' && suggestions.length > 0) {
+                e.preventDefault();
+                applySuggestion(suggestions[0]);
+              }
+            }}
+            placeholder="Ketik perintah (contoh: /generate) atau pesan..."
+            className="input-field"
           />
-          <button
-            onClick={handleSend}
-            className="px-6 py-2 bg-teal-600 hover:bg-teal-500 text-white font-medium rounded transition-colors shadow-lg"
-          >
+          <button onClick={handleSend} className="btn-send">
             Kirim
           </button>
         </div>
-      </footer>
+      </div>
     </div>
-  )
+  );
 }
-
-export default App
