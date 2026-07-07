@@ -97,6 +97,49 @@ void LlamaEngine::initialize_backend() {
     }
 }
 
+void LlamaEngine::change_parameters(const std::string& param_name, const std::string& param_value, ContextSession& session, bool is_ui_mode) {
+    bool success = false;
+    std::string message = "";
+
+    try {
+        if (param_name == "temperature" || param_name == "temp") {
+            session.currentTemperature = std::stof(param_value);
+            success = true;
+            message = "Temperature updated to " + param_value;
+        } else if (param_name == "top_k" || param_name == "topk") {
+            session.topK = std::stoi(param_value);
+            success = true;
+            message = "TopK updated to " + param_value;
+        } else if (param_name == "top_p" || param_name == "topp") {
+            session.topP = std::stof(param_value);
+            success = true;
+            message = "TopP updated to " + param_value;
+        } else if (param_name == "max_tokens" || param_name == "max_token") {
+            session.maxTokens = std::stoi(param_value);
+            success = true;
+            message = "Max tokens updated to " + param_value;
+        } else {
+            message = "Unknown parameter: " + param_name;
+        }
+    } catch (const std::exception& e) {
+        message = "Invalid value format for parameter " + param_name + ": " + e.what();
+    }
+
+    if (is_ui_mode) {
+        if (success) {
+            std::cout << "{\"status\":\"success\",\"message\":\"" << message << "\"}\n" << std::flush;
+        } else {
+            std::cout << "{\"status\":\"error\",\"message\":\"" << message << "\"}\n" << std::flush;
+        }
+    } else {
+        if (success) {
+            std::cout << "[SYSTEM] " << message << "\n";
+        } else {
+            std::cerr << "[ERROR] " << message << "\n";
+        }
+    }
+}
+
 void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     if (!model) {
         if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Model belum dimuat\"}\n" << std::flush;

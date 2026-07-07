@@ -1,6 +1,7 @@
 
 #include "parser.hpp"
 #include <stdexcept>
+#include <algorithm>
 
 std::string ASTNode::getNodeTypeName() const {
     switch (type) {
@@ -10,6 +11,9 @@ std::string ASTNode::getNodeTypeName() const {
         case NodeType::LiteralText: return "LiteralText";
         case NodeType::VariableDeclaration: return "VariableDeclaration";
         case NodeType::VariableAccess: return "VariableAccess";
+        case NodeType::LiteralInt: return "LiteralInt";
+        case NodeType::LiteralFloat: return "LiteralFloat";
+        case NodeType::LiteralBool: return "LiteralBool";
         default: return "Unknown";
     }
 }
@@ -68,6 +72,7 @@ ParameterNode::ParameterNode() {
 
 ParameterNode::ParameterNode(const std::string& k, const std::string& v) : key(k), value(v) { 
     type = NodeType::Parameter; 
+
 }
 
 void ParameterNode::printAST_tree(std::ostream& os, const std::string& prefix, bool isLast) const {
@@ -214,13 +219,19 @@ std::unique_ptr<ParameterNode> Parser::parse_parameter() {
     }
     key = key.substr(start_idx);
 
-    // Cek jika terdapat '=' di dalam parameter (e.g. temp=0.7)
-    size_t eq_pos = key.find('=');
-    if (eq_pos != std::string::npos) {
-        value = key.substr(eq_pos + 1);
-        key = key.substr(0, eq_pos);
+    if (m_current_token.type == TokenType::INT || 
+        m_current_token.type == TokenType::FLOAT || 
+        m_current_token.type == TokenType::TEXT) {
+        
+        value = m_current_token.value; 
+    } 
+    else {
+        size_t eq_pos = key.find('=');
+        if (eq_pos != std::string::npos) {
+            value = key.substr(eq_pos + 1);
+            key = key.substr(0, eq_pos);
+        }
     }
-
     return std::make_unique<ParameterNode>(key, value);
 }
 
@@ -253,6 +264,7 @@ CommandType Parser::get_command_type(const std::string& command_name) const {
     if (command_name == "save-history" || command_name == "save_history") return CommandType::SaveHistory;
     if (command_name == "generate") return CommandType::Generate;
     if (command_name == "help") return CommandType::Help;
+    if (command_name == "show-params" || command_name == "show_params") return CommandType::ShowParams;
     if (command_name == "set-param" || command_name == "set_param") return CommandType::SetParam;
     if (command_name == "exit") return CommandType::Exit;
     return CommandType::Unknown;

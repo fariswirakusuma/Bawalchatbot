@@ -25,7 +25,21 @@ enum class NodeType {
     Parameter,
     LiteralText,
     VariableDeclaration,
-    VariableAccess
+    VariableAccess,
+
+    LiteralInt,
+    LiteralFloat,
+    LiteralBool,
+
+
+    BinaryExpression,   // + - * /
+    UnaryExpression,    
+
+    BlockStatement,     // kurung kurawal {}
+    IfStatement,        // logical exp
+    
+    // error handling
+    ErrorNode
 };
 
 enum class CommandType {
@@ -36,6 +50,7 @@ enum class CommandType {
     LoadHistory,
     SaveHistory,
     Generate,
+    ShowParams,
     SetParam,
     Help,
     Exit
@@ -66,7 +81,7 @@ struct VariableAccessNode : public ASTNode {
 
 struct CommandNode : public ASTNode {
     std::string commandName;
-    CommandType cmdType; // Perbaikan: Diubah dari 'type' menjadi 'cmdType' agar tidak bentrok
+    CommandType cmdType; 
     std::vector<std::unique_ptr<struct ParameterNode>> parameters;
     std::vector<std::unique_ptr<ASTNode>> arguments;
 
@@ -129,6 +144,7 @@ private:
     std::unique_ptr<VariableDeclarationNode> parse_variable_declaration();
     std::unique_ptr<VariableAccessNode> parse_variable_access();
     std::unique_ptr<LiteralTextNode> parse_literal_text();
+    
 
     // Helper untuk mengonversi string command menjadi CommandType
     CommandType get_command_type(const std::string& command_name) const;

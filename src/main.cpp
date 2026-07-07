@@ -14,15 +14,11 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
     Lexer lexer(input); 
     Parser parser(lexer); 
     std::unique_ptr<ProgramNode> program_ast = parser.parse(); 
-
     if (parser.has_errors()) { 
         if (is_ui_mode) {
             std::cout << "{\"status\":\"error\",\"message\":\"Parsing error. Cek sintaks perintah.\"}\n" << std::flush;
         } else {
-            std::cerr << "Parsing Errors:\n";
-            for (const auto& error : parser.get_errors()) { 
-                std::cerr << "- " << error << "\n";
-            }
+
         }
         return; 
     }
@@ -85,7 +81,7 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                 }
                 else if (command_node->commandName == "help") {
                     if (is_ui_mode) {
-                        std::string help_msg = "Commands:\\n/set_model --name <model>\\n/set_prompt --text <prompt>\\n/load_history --file <file>\\n/save_history --file <file>\\n/generate [text]\\n/set_param --param <val>\\n/exit";
+                        std::string help_msg = "Commands:\\n/set_model --name <model>\\n/set_prompt --text <prompt>\\n/load_history --file <file>\\n/save_history --file <file>\\n/generate [text]\\n/set_param --param <val>\\n/show_params                     : Show current session parameters.\\n/exit";
                         std::cout << "{\"status\":\"info\",\"message\":\"" << help_msg << "\"}\n" << std::flush;
                     } else {
                         std::cout << "Available Commands:\n"
@@ -97,7 +93,66 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                                   << "  /save_history --file <filename>    : Save chat history to a file.\n"
                                   << "  /generate [text]                   : Generate a response based on context.\n"
                                   << "  /set_param --param <value>         : Set parameters (temp, top_k, etc.).\n"
+                                  << "  /show_params                        : Show current session parameters.\n"
                                   << "  /exit                              : Exit the application.\n";
+                    }
+                }
+                else if (command_node->commandName == "show_params") {
+                    if (is_ui_mode) {
+                        std::cout << "{\"status\":\"info\",\"message\":\"Current Session Parameters:\\n"
+                                  << "  Model Name: " << session.modelName << "\\n"
+                                  << "  System Prompt: " << session.systemPrompt << "\\n"
+                                  << "  Temperature: " << session.currentTemperature << "\\n"
+                                  << "  Max Tokens: " << session.maxTokens << "\\n"
+                                  << "  Top K: " << session.topK << "\\n"
+                                  << "  Top P: " << session.topP << "\\n"
+                                  << "  Repeat Penalty: " << session.repeatPenalty << "\\n"
+                                  << "  History File Name: " << session.historyFileName
+                                  << "\"}\n" 
+                                  << std::flush;
+                    } else {
+                        std::cout << "[SYSTEM] Current Session Parameters:\n"
+                                  << "  Model Name: " << session.modelName << "\n"
+                                  << "  System Prompt: " << session.systemPrompt << "\n"
+                                  << "  Temperature: " << session.currentTemperature << "\n"
+                                  << "  Max Tokens: " << session.maxTokens << "\n"
+                                  << "  Top K: " << session.topK << "\n"
+                                  << "  Top P: " << session.topP << "\n"
+                                  << "  Repeat Penalty: " << session.repeatPenalty << "\n"
+                                  << "  History File Name: " << session.historyFileName
+                                  << "\n";
+                    }
+
+                }
+                else if (command_node->commandName == "set_prompt") {
+                    for (const auto& paramNodePtr : command_node->parameters) {
+                        const ParameterNode* pNode = paramNodePtr.get();
+                        if (pNode->key == "text") {
+                            session.systemPrompt = pNode->value;
+                            if (is_ui_mode) std::cout << "{\"status\":\"success\",\"message\":\"System prompt updated.\"}\n" << std::flush;
+                            else std::cout << "[SYSTEM] System prompt updated to: \"" << pNode->value << "\"\n";
+                        }
+                    }
+                }
+                else if (command_node->commandName == "set_model") {
+                    for (const auto& paramNodePtr : command_node->parameters) {
+                        const ParameterNode* pNode = paramNodePtr.get();
+                        if (pNode->key == "name") {
+                            session.modelName = pNode->value;
+                            if (is_ui_mode) std::cout << "{\"status\":\"success\",\"message\":\"Model name set to: " 
+                                                      << pNode->value 
+                                                      << ". Use /generate to load the model.\"}\n" 
+                                                      << std::flush;
+                            else std::cout << "[SYSTEM] Model name set to: \"" 
+                                           << pNode->value 
+                                           << "\". Use /generate to load the model.\n";
+                        }
+                    }
+                }
+                else if (command_node->commandName == "set_param") {
+                    for (const auto& paramNodePtr : command_node->parameters) {
+                        const ParameterNode* pNode = paramNodePtr.get();
+                        engine.change_parameters(pNode->key, pNode->value, session, is_ui_mode);
                     }
                 }
                 else if (command_node->commandName == "save_history") { 
