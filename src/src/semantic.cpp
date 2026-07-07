@@ -92,8 +92,6 @@ bool SemanticAnalyzer::analyze_and_apply(const CommandNode* ast_root, ContextSes
             success = process_set_param_command(*ast_root, session);
             break;
         case CommandType::Help:
-            
-            // Help command doesn't modify session, but we can validate its structure if needed
             success = true; // Assuming help command is always valid for now
             break;
         case CommandType::Exit:
@@ -143,7 +141,6 @@ bool SemanticAnalyzer::process_set_prompt_command(const CommandNode& node, Conte
         add_error("Semantic Error: 'set_prompt' command requires a prompt string.");
         return false;
     }
-    // for combining all literal text arguments into a single prompt string
     std::string combined_prompt = "";
     if (!node.arguments.empty()) {
         for (const auto& argNodePtr : node.arguments) {

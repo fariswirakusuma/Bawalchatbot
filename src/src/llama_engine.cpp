@@ -7,6 +7,7 @@
 #include <curl/curl.h>
 #include <cstdlib>
 #include <sys/stat.h>
+#include <nlohmann/json.hpp>
 
 namespace fs = std::filesystem;
 
@@ -271,48 +272,55 @@ void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     llama_batch_free(batch);
 }
 
-bool LlamaEngine::load_history(const std::string& filename, ContextSession& session) {
-    if (filename.empty()) {
-        return false;
-    }
-    std::string full_path = "history/" + filename;
-    if (!fs::exists(full_path)) {
-        return false;
-    }
-    std::ifstream infile(full_path);
-    if (!infile.is_open()) {
-        return false;
-    }   
-    session.chatHistory.clear();
-    std::string line;
-    while (std::getline(infile, line)) {
-        if (line.empty()) continue;
-        std::size_t colon_pos = line.find(':');
-        if (colon_pos != std::string::npos) {
-            Message msg;
-            msg.role = line.substr(0, colon_pos);
-            msg.content = line.substr(colon_pos + 1);
-            session.chatHistory.push_back(msg);
+bool LlamaEngine::load_history(const std::string& filename, ContextSession& session) {\
+    std::string directory_name = "history";
+    std::string full_path = directory_name + "/" + filename;
+    
+    try {
+        std::ifstream file(full_path);
+        if (!file.is_open()) {
+            std::cerr << "Gagal membuka file riwayat.\n";
+            return false;
         }
+        nlohmann::json j;
+        file >> j;
+
+        bool current_exit_status = session.shouldExit;
+        session = j.get<ContextSession>();
+        session.shouldExit = current_exit_status;
+
+        file.close();
+        return true;
+    } 
+    catch (const std::exception& e) {
+        std::cerr << "JSON Deserialize Error: " << e.what() << "\n";
+        return false;
     }
-    return true;
 }
 
-bool LlamaEngine::save_history(const std::string& filename, const ContextSession& session) {
-    if (filename.empty()) {
+bool LlamaEngine::save_history(const std::string& filename, const ContextSession& session){
+    std::string directory_name = "history";
+    std::string full_path = directory_name + "/" + filename;
+    try {
+
+        if (!std::filesystem::exists(directory_name)) {
+            std::filesystem::create_directories(directory_name);
+        }
+
+        std::ofstream file(full_path);
+        if (!file.is_open()) {
+            std::cerr << "Gagal membuka file di jalur: " << full_path << "\n";
+            return false;
+        }
+        nlohmann::json j = session; 
+        file << j.dump(4);          
+        
+        file.flush(); 
+        file.close();
+        return true; 
+    } 
+    catch (const std::exception& e) {
+        std::cerr << "JSON Serialize Error: " << e.what() << "\n";
         return false;
     }
-    std::string folder_path = "history";
-    if (!fs::exists(folder_path)) {
-        fs::create_directories(folder_path);
-    }
-    std::string full_path = folder_path + "/" + filename;
-    std::ofstream outfile(full_path);
-    if (!outfile.is_open()) {
-        return false;
-    }   
-    for (const auto& msg : session.chatHistory) {
-        outfile << msg.role << ":" << msg.content << "\n";
-    }
-    return true;
 }

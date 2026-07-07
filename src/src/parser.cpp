@@ -183,7 +183,6 @@ std::unique_ptr<ASTNode> Parser::parse_statement() {
 std::unique_ptr<CommandNode> Parser::parse_command() {
     auto command_node = std::make_unique<CommandNode>();
     
-    // Command string cleanup (e.g. /set-model -> set-model)
     std::string raw_cmd = m_current_token.value;
     if (!raw_cmd.empty() && raw_cmd[0] == '/') {
         raw_cmd = raw_cmd.substr(1);
@@ -191,13 +190,12 @@ std::unique_ptr<CommandNode> Parser::parse_command() {
     
     command_node->commandName = raw_cmd;
     command_node->cmdType = get_command_type(raw_cmd);
-    advance(); // Consume the COMMAND token
-
-    // Parse parameters and arguments that belong to this command
-    while (m_current_token.type == TokenType::PARAMETER || m_current_token.type == TokenType::TEXT) {
+    advance();
+    while (m_current_token.type != TokenType::END_OF_FILE) {
         if (m_current_token.type == TokenType::PARAMETER) {
             command_node->parameters.push_back(parse_parameter());
-        } else if (m_current_token.type == TokenType::TEXT) {
+        } 
+        else {
             command_node->arguments.push_back(parse_argument());
         }
     }

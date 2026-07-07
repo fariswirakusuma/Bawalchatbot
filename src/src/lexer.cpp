@@ -98,7 +98,7 @@ Token Lexer::scanToken() {
     }
 
     if (std::isalnum(c) || c == '_') {
-        while (pos < source.length() && (std::isalnum(source[pos]) || source[pos] == '_')) {
+        while (pos < source.length() &&std::isalnum(source[pos]) || source[pos] == '_' || source[pos] == '-' || source[pos] == '.' || source[pos] == '/') {
             pos++;
         }
         std::string text_str = std::string(source.substr(start, pos - start));

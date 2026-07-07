@@ -92,8 +92,8 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                                   << "  /load_history --file <filename>    : Load chat history from a file.\n"
                                   << "  /save_history --file <filename>    : Save chat history to a file.\n"
                                   << "  /generate [text]                   : Generate a response based on context.\n"
-                                  << "  /set_param --param <value>         : Set parameters (temp, top_k, etc.).\n"
-                                  << "  /show_params                        : Show current session parameters.\n"
+                                  << "  /set_param --param <value>         : Set parameters (temp, top_k,top_p, max_token).\n"
+                                  << "  /show_params                       : Show current session parameters.\n"
                                   << "  /exit                              : Exit the application.\n";
                     }
                 }
@@ -155,7 +155,7 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                         engine.change_parameters(pNode->key, pNode->value, session, is_ui_mode);
                     }
                 }
-                else if (command_node->commandName == "save_history") { 
+               else if (command_node->commandName == "save_history") { 
                     std::string filename = ""; 
                     if (!command_node->arguments.empty()) { 
                         auto text_node = dynamic_cast<LiteralTextNode*>(command_node->arguments[0].get()); 
@@ -163,10 +163,19 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                     }
                     filename.erase(std::remove(filename.begin(), filename.end(), '\"'), filename.end()); 
                     session.historyFileName = filename; 
-                    engine.save_history(session.historyFileName, session); 
-                    
-                    if (is_ui_mode) std::cout << "{\"status\":\"info\",\"message\":\"History disimpan: " << filename << "\"}\n" << std::flush;
-                    else std::cout << "Saving chat history to file: " << filename << "\n";
+                    if (engine.save_history(session.historyFileName, session)) {
+                        if (is_ui_mode) {
+                            std::cout << "{\"status\":\"success\",\"message\":\"History disimpan: " << filename << "\"}\n" << std::flush;
+                        } else {
+                            std::cout << "Saving chat history to file: " << filename << " [SUCCESS]\n";
+                        }
+                    } else {
+                        if (is_ui_mode) {
+                            std::cout << "{\"status\":\"error\",\"message\":\"Gagal menyimpan history: " << filename << "\"}\n" << std::flush;
+                        } else {
+                            std::cout << "Failed to save chat history to file: " << filename << "\n";
+                        }
+                    }
                 }
                 else if (command_node->commandName == "load_history") { 
                     std::string filename = ""; 
@@ -176,10 +185,29 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                     }
                     filename.erase(std::remove(filename.begin(), filename.end(), '\"'), filename.end()); 
                     session.historyFileName = filename; 
-                    engine.load_history(session.historyFileName, session); 
                     
-                    if (is_ui_mode) std::cout << "{\"status\":\"info\",\"message\":\"History dimuat: " << filename << "\"}\n" << std::flush;
-                    else std::cout << "Loading chat history from file: " << filename << "\n";
+                    if (engine.load_history(session.historyFileName, session)) {
+                        if (is_ui_mode) {
+                            std::cout << "{\"status\":\"success\",\"message\":\"History dimuat: " << filename << "\"}\n" << std::flush;
+                        } else {
+                            std::cout << "Loading chat history from file: " << filename << "\n";
+                            std::cout << "--------------------------------------------------------\n";
+                            for (const auto& msg : session.chatHistory) {
+                                if (msg.role == "user") {
+                                    std::cout << "\n> " << msg.content << "\n";
+                                } else if (msg.role == "assistant") {
+                                    std::cout << "assistant:\n" << msg.content << "\n";
+                                }
+                            }
+                            std::cout << "--------------------------------------------------------\n";
+                        }
+                    } else {
+                        if (is_ui_mode) {
+                            std::cout << "{\"status\":\"error\",\"message\":\"Gagal memuat history: " << filename << "\"}\n" << std::flush;
+                        } else {
+                            std::cout << "Failed to load chat history from file: " << filename << "\n";
+                        }
+                    }
                 }
             }
         }

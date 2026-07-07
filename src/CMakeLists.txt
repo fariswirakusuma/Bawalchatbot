@@ -12,6 +12,13 @@ add_subdirectory(../third_party/llama.cpp llama_build)
 
 find_package(CURL REQUIRED)
 
+include(FetchContent) 
+FetchContent_Declare(
+  json
+  URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(json)
+
 file(GLOB_RECURSE APP_SOURCES "src/*.cpp")
 list(FILTER APP_SOURCES EXCLUDE REGEX ".*test.*\\.cpp")
 
@@ -23,9 +30,11 @@ target_include_directories(chatbox_core PRIVATE
     ${CURL_INCLUDE_DIRS}
 )
 
-target_link_libraries(chatbox_core PRIVATE llama ${CURL_LIBRARIES})
-
-include(FetchContent) 
+target_link_libraries(chatbox_core PRIVATE 
+    llama 
+    ${CURL_LIBRARIES} 
+    nlohmann_json::nlohmann_json
+)
 
 FetchContent_Declare(
   googletest
@@ -47,10 +56,12 @@ if(TEST_SOURCES)
         ${CURL_INCLUDE_DIRS}
     )
     
+    # Hubungkan juga target test runner ke nlohmann_json agar pengujian kode JSON bisa jalan
     target_link_libraries(core_test_runner PRIVATE 
         llama 
         ${CURL_LIBRARIES} 
         GTest::gtest_main
+        nlohmann_json::nlohmann_json
     )
 
     include(GoogleTest)
