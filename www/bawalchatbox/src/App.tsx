@@ -12,8 +12,8 @@ declare global {
 }
 
 const VALID_COMMANDS = [
-  '/help', '/generate', '/set_model', 
-  '/load_history', '/save_history','/show_params', '/set_param', '/exit'
+  '/help', '/generate', '/set_model', '/add_url_model',
+  '/load_history', '/save_history', '/show_params', '/set_param', '/set_prompt', '/exit'
 ];
 
 const formatMessageWithRegex = (text: string) => {
@@ -52,14 +52,11 @@ export default function App() {
         try {
           const parsed = JSON.parse(trimmedLine);
           
-          if (parsed.status === 'success' || parsed.status === 'error') {
-            setMessages(prev => [...prev, { 
-              role: parsed.status === 'error' ? 'error' : 'system', 
-              content: parsed.message || ''
-            }]);
+          if (parsed.status === 'error') {
+            setMessages(prev => [...prev, { role: 'error', content: String(parsed.message || '') }]);
           } 
-          else if (parsed.status === 'info') {
-            if (parsed.data) {
+          else if (parsed.status === 'success' || parsed.status === 'info') {
+            if (parsed.command === 'show_params' && parsed.data) {
               const formattedParams = `Current Session Parameters:\n` +
                 `• Model Name: ${parsed.data.modelName || '-'}\n` +
                 `• System Prompt: ${parsed.data.systemPrompt || '-'}\n` +
@@ -72,7 +69,7 @@ export default function App() {
 
               setMessages(prev => [...prev, { role: 'system', content: formattedParams }]);
             } else {
-              setMessages(prev => [...prev, { role: 'system', content: parsed.message || '' }]);
+              setMessages(prev => [...prev, { role: 'system', content: String(parsed.message || '') }]);
             }
           }
           else if (parsed.status === 'start') {
@@ -83,7 +80,7 @@ export default function App() {
               const newMsgs = [...prev];
               const lastIdx = newMsgs.length - 1;
               if (lastIdx >= 0 && newMsgs[lastIdx].role === 'assistant') {
-                newMsgs[lastIdx].content += parsed.content;
+                newMsgs[lastIdx].content += String(parsed.content);
               }
               return newMsgs;
             });
