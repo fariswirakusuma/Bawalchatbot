@@ -12,12 +12,12 @@ declare global {
 }
 
 const VALID_COMMANDS = [
-  '/help', '/generate', '/set_model', '/set_prompt', 
-  '/load_history', '/save_history', '/set_param', '/exit'
+  '/help', '/generate', '/set_model', '/add_url_model',
+  '/load_history', '/save_history', '/show_params', '/set_param', '/set_prompt', '/exit'
 ];
 
 const formatMessageWithRegex = (text: string) => {
-  if (!text) return null;
+  if (!text) return '';
   const commandRegex = /(\/[a-zA-Z0-9_]+)/g;
   const parts = text.split(commandRegex);
 
@@ -45,35 +45,48 @@ export default function App() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      const removeOutListener = window.electronAPI.onBackendOut((data: string) => {
-        const lines = data.split('\n').filter(line => line.trim() !== '');
-        
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            
-            if (parsed.status === 'info' || parsed.status === 'error') {
-              setMessages(prev => [...prev, { 
-                role: parsed.status === 'error' ? 'error' : 'system', 
-                content: parsed.message.replace(/\\n/g, '\n')
-              }]);
-            } 
-            else if (parsed.status === 'start') {
-              setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-            } 
-            else if (parsed.status === 'token') {
-              setMessages(prev => {
-                const newMsgs = [...prev];
-                const lastIdx = newMsgs.length - 1;
-                if (lastIdx >= 0 && newMsgs[lastIdx].role === 'assistant') {
-                  newMsgs[lastIdx].content += parsed.content.replace(/\\n/g, '\n');
-                }
-                return newMsgs;
-              });
+      const removeOutListener = window.electronAPI.onBackendOut((line: string) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return;
+
+        try {
+          const parsed = JSON.parse(trimmedLine);
+          
+          if (parsed.status === 'error') {
+            setMessages(prev => [...prev, { role: 'error', content: String(parsed.message || '') }]);
+          } 
+          else if (parsed.status === 'success' || parsed.status === 'info') {
+            if (parsed.command === 'show_params' && parsed.data) {
+              const formattedParams = `Current Session Parameters:\n` +
+                `• Model Name: ${parsed.data.modelName || '-'}\n` +
+                `• System Prompt: ${parsed.data.systemPrompt || '-'}\n` +
+                `• Temperature: ${parsed.data.currentTemperature}\n` +
+                `• Max Tokens: ${parsed.data.maxTokens}\n` +
+                `• Top K: ${parsed.data.topK}\n` +
+                `• Top P: ${parsed.data.topP}\n` +
+                `• Repeat Penalty: ${parsed.data.repeatPenalty}\n` +
+                `• History File: ${parsed.data.historyFileName || '-'}`;
+
+              setMessages(prev => [...prev, { role: 'system', content: formattedParams }]);
+            } else {
+              setMessages(prev => [...prev, { role: 'system', content: String(parsed.message || '') }]);
             }
-          } catch (e) {
-            console.log("Log Non-JSON C++:", line);
           }
+          else if (parsed.status === 'start') {
+            setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+          } 
+          else if (parsed.status === 'token' && parsed.content !== undefined) {
+            setMessages(prev => {
+              const newMsgs = [...prev];
+              const lastIdx = newMsgs.length - 1;
+              if (lastIdx >= 0 && newMsgs[lastIdx].role === 'assistant') {
+                newMsgs[lastIdx].content += String(parsed.content);
+              }
+              return newMsgs;
+            });
+          }
+        } catch (e) {
+          console.log("Log Non-JSON C++:", trimmedLine);
         }
       });
 
@@ -81,7 +94,6 @@ export default function App() {
         console.error("Backend Error:", data);
       });
 
-      // Cleanup listener saat komponen unmount
       return () => {
         removeOutListener();
         removeErrListener();
@@ -122,7 +134,6 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Header Baru dengan Judul, Versi, dan Animasi */}
       <header className="app-header">
         <div className="logo-container">
           <h1 className="app-title">
@@ -146,7 +157,7 @@ export default function App() {
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`message-row ${msg.role === 'user' ? 'message-user' : 'message-bot'}`}>
-            <div className={`message-bubble ${
+            <div style={{ whiteSpace: 'pre-wrap' }} className={`message-bubble ${
               msg.role === 'user' ? 'bubble-user' : 
               msg.role === 'error' ? 'bubble-error' : 'bubble-system'
             }`}>

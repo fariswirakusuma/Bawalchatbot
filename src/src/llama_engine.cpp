@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <sys/stat.h>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
 
 namespace fs = std::filesystem;
 
@@ -27,17 +28,15 @@ LlamaEngine::~LlamaEngine() {
 
 void LlamaEngine::add_url_model(const std::string& model_name, const std::string& model_url) {
     if (model_name.empty() || model_url.empty()) {
-        std::cerr << "{\"status\":\"error\",\"message\":\"Empty parameters.\"}\n" << std::endl;
-        return;
+        throw std::runtime_error("Empty parameters provided for model download.");
     }
-
+    
     try {
         if (!fs::exists("models")) {
             fs::create_directory("models");
         }
     } catch (const fs::filesystem_error& e) {
-        std::cerr << "{\"status\":\"error\",\"message\":\"Failed to create directory: " << e.what() << "\"}\n" << std::endl;
-        return;
+        throw std::runtime_error(std::string("Failed to open directory: ") + e.code().message());
     }
 
     std::string output_path = "models/" + model_name;
@@ -49,13 +48,10 @@ void LlamaEngine::add_url_model(const std::string& model_name, const std::string
         command = "wget -c --show-progress -O " + output_path + " \"" + model_url + "\"";
     #endif
 
-    std::cout << "{\"status\":\"processing\",\"message\":\"Downloading model to " << output_path << "...\"}\n" << std::flush;
-
     int result = std::system(command.c_str());
 
     if (result != 0) {
-        std::cerr << "{\"status\":\"error\",\"message\":\"Download execution failed with exit code " << result << "\"}\n" << std::endl;
-        return;
+        throw std::runtime_error("Download execution failed with exit code " + std::to_string(result));
     }
 }
 
@@ -73,21 +69,20 @@ bool LlamaEngine::load_model(const std::string& model_filename) {
 
     llama_model_params model_params = llama_model_default_params();
     model = llama_load_model_from_file(full_path.c_str(), model_params);
+    
     if (!model) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Gagal memuat file model\"}\n" << std::flush;
-        return false;
+        throw std::runtime_error("Failed to load LLaMA model from path: " + full_path);
     }
 
     llama_context_params ctx_params = llama_context_default_params();
     ctx = llama_new_context_with_model(model, ctx_params);
+    
     if (!ctx) {
-        std::cout << "{\"status\":\"error\",\"message\":\"Gagal membuat LLaMA context\"}\n" << std::flush;
         llama_free_model(model);
         model = nullptr;
-        return false;
+        throw std::runtime_error("Failed to load LLaMA context.");
     }
-
-    std::cout << "{\"status\":\"success\",\"message\":\"Model berhasil dimuat\"}\n" << std::flush;
+    
     return true;
 }
 
@@ -99,53 +94,26 @@ void LlamaEngine::initialize_backend() {
 }
 
 void LlamaEngine::change_parameters(const std::string& param_name, const std::string& param_value, ContextSession& session, bool is_ui_mode) {
-    bool success = false;
-    std::string message = "";
-
     try {
         if (param_name == "temperature" || param_name == "temp") {
             session.currentTemperature = std::stof(param_value);
-            success = true;
-            message = "Temperature updated to " + param_value;
         } else if (param_name == "top_k" || param_name == "topk") {
             session.topK = std::stoi(param_value);
-            success = true;
-            message = "TopK updated to " + param_value;
         } else if (param_name == "top_p" || param_name == "topp") {
             session.topP = std::stof(param_value);
-            success = true;
-            message = "TopP updated to " + param_value;
         } else if (param_name == "max_tokens" || param_name == "max_token") {
             session.maxTokens = std::stoi(param_value);
-            success = true;
-            message = "Max tokens updated to " + param_value;
         } else {
-            message = "Unknown parameter: " + param_name;
+            throw std::runtime_error("Unknown parameter: " + param_name);
         }
     } catch (const std::exception& e) {
-        message = "Invalid value format for parameter " + param_name + ": " + e.what();
-    }
-
-    if (is_ui_mode) {
-        if (success) {
-            std::cout << "{\"status\":\"success\",\"message\":\"" << message << "\"}\n" << std::flush;
-        } else {
-            std::cout << "{\"status\":\"error\",\"message\":\"" << message << "\"}\n" << std::flush;
-        }
-    } else {
-        if (success) {
-            std::cout << "[SYSTEM] " << message << "\n";
-        } else {
-            std::cerr << "[ERROR] " << message << "\n";
-        }
+        throw std::runtime_error("Invalid value format for parameter " + param_name + ": " + e.what());
     }
 }
 
 void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     if (!model) {
-        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Model belum dimuat\"}\n" << std::flush;
-        else std::cerr << "Error: Model belum dimuat\n";
-        return;
+        throw std::runtime_error("Model is not yet loaded.");
     }
 
     if (ctx) {
@@ -156,18 +124,14 @@ void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     llama_context_params ctx_params = llama_context_default_params();
     ctx = llama_new_context_with_model(model, ctx_params);
     if (!ctx) {
-        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Gagal membuat ulang context\"}\n" << std::flush;
-        else std::cerr << "Error: Gagal membuat ulang context\n";
-        return;
+        throw std::runtime_error("Failed to reload context.");
     }
 
     if (session.chatHistory.empty()) {
-        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Chat history kosong\"}\n" << std::flush;
-        else std::cerr << "Error: Chat history kosong\n";
-        return;
+        throw std::runtime_error("Chat history is empty.");
     }
+    
     std::string user_prompt = session.chatHistory.back().content;
-
     const llama_vocab* vocab = llama_model_get_vocab(model);
 
     std::vector<llama_token> tokens(user_prompt.size() + 1);
@@ -199,11 +163,9 @@ void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     }
 
     if (llama_decode(ctx, batch) != 0) {
-        if (is_ui_mode) std::cout << "{\"status\":\"error\",\"message\":\"Gagal melakukan decode awal\"}\n" << std::flush;
-        else std::cerr << "Error: Gagal melakukan decode awal\n";
         llama_sampler_free(smpl);
         llama_batch_free(batch);
-        return;
+        throw std::runtime_error("Failed to perform initial decode.");
     }
 
     int n_cur = n_tokens;
@@ -238,7 +200,6 @@ void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
                 }
                 std::cout << "{\"status\":\"token\",\"content\":\"" << escaped_piece << "\"}\n" << std::flush;
             } else {
-                // Jalur CLI murni: Keluarkan karakter mentah langsung ke layar
                 std::cout << piece << std::flush;
             }
             ResponseOutput += piece;
@@ -272,15 +233,14 @@ void LlamaEngine::execute_generation(ContextSession& session, bool is_ui_mode) {
     llama_batch_free(batch);
 }
 
-bool LlamaEngine::load_history(const std::string& filename, ContextSession& session) {\
+bool LlamaEngine::load_history(const std::string& filename, ContextSession& session) {
     std::string directory_name = "history";
     std::string full_path = directory_name + "/" + filename;
     
     try {
         std::ifstream file(full_path);
         if (!file.is_open()) {
-            std::cerr << "Gagal membuka file riwayat.\n";
-            return false;
+            throw std::runtime_error("Failed to open history file: " + full_path);
         }
         nlohmann::json j;
         file >> j;
@@ -293,24 +253,22 @@ bool LlamaEngine::load_history(const std::string& filename, ContextSession& sess
         return true;
     } 
     catch (const std::exception& e) {
-        std::cerr << "JSON Deserialize Error: " << e.what() << "\n";
-        return false;
+        throw std::runtime_error(std::string("JSON Deserialize Error: ") + e.what());
     }
 }
 
-bool LlamaEngine::save_history(const std::string& filename, const ContextSession& session){
+bool LlamaEngine::save_history(const std::string& filename, const ContextSession& session) {
     std::string directory_name = "history";
     std::string full_path = directory_name + "/" + filename;
+    
     try {
-
         if (!std::filesystem::exists(directory_name)) {
             std::filesystem::create_directories(directory_name);
         }
 
         std::ofstream file(full_path);
         if (!file.is_open()) {
-            std::cerr << "Gagal membuka file di jalur: " << full_path << "\n";
-            return false;
+            throw std::runtime_error("Failed to open file for saving: " + full_path);
         }
         nlohmann::json j = session; 
         file << j.dump(4);          
@@ -320,7 +278,6 @@ bool LlamaEngine::save_history(const std::string& filename, const ContextSession
         return true; 
     } 
     catch (const std::exception& e) {
-        std::cerr << "JSON Serialize Error: " << e.what() << "\n";
-        return false;
+        throw std::runtime_error(std::string("JSON Serialize Error: ") + e.what());
     }
 }

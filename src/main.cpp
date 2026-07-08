@@ -16,9 +16,12 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
     std::unique_ptr<ProgramNode> program_ast = parser.parse(); 
     if (parser.has_errors()) { 
         if (is_ui_mode) {
-            std::cout << "{\"status\":\"error\",\"message\":\"Parsing error. Cek sintaks perintah.\"}\n" << std::flush;
+            nlohmann::json response;
+            response["status"] = "error";
+            response["message"] = "❌ Parsing error. Check command syntax.";
+            std::cout << response.dump() << "\n" << std::flush;
         } else {
-
+            std::cerr << "[ERROR] Parsing error. Check command syntax.\n";
         }
         return; 
     }
@@ -34,7 +37,10 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
             if (!semanticAnalyzer.analyze_and_apply(command_node, session)) { 
                 all_commands_applied_successfully = false; 
                 if (is_ui_mode) {
-                    std::cout << "{\"status\":\"error\",\"message\":\"Semantic error pada perintah " << command_node->commandName << "\"}\n" << std::flush;
+                    nlohmann::json response;
+                    response["status"] = "error";
+                    response["message"] = "❌ Semantic error in command: " + command_node->commandName;
+                    std::cout << response.dump() << "\n" << std::flush;
                 } else {
                     std::cerr << "Semantic Errors for command '" << command_node->commandName << "':\n";
                     for (const auto& error : semanticAnalyzer.get_errors()) { 
@@ -43,7 +49,46 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                 }
             } else {
                 if (command_node->commandName == "set_model") {
-                    model_load_requested = true; 
+                    model_load_requested = true;
+                    std::string extracted_name = "";
+
+                    for (const auto& paramNodePtr : command_node->parameters) {
+                        const ParameterNode* pNode = paramNodePtr.get();
+                        if (pNode->key == "name") {
+                            extracted_name = pNode->value;
+                        }
+                    }
+
+                    if (extracted_name.empty() && !command_node->arguments.empty()) {
+                        auto text_node = dynamic_cast<LiteralTextNode*>(command_node->arguments[0].get());
+                        if (text_node) {
+                            extracted_name = text_node->text;
+                        }
+                    }
+
+                    if (!extracted_name.empty()) {
+                        extracted_name.erase(std::remove(extracted_name.begin(), extracted_name.end(), '\"'), extracted_name.end());
+                        session.modelName = extracted_name;
+
+                        if (is_ui_mode) {
+                            nlohmann::json response;
+                            response["status"] = "success";
+                            response["command"] = "set_model";
+                            response["message"] = "✅ Model name set to: " + session.modelName + ". Use /generate to load.";
+                            std::cout << response.dump() << "\n" << std::flush;
+                        } else {
+                            std::cout << "[SYSTEM] Model name set to: \"" << session.modelName << "\". Use /generate to load the model.\n" << std::flush;
+                        }
+                    } else {
+                        if (is_ui_mode) {
+                            nlohmann::json response;
+                            response["status"] = "error";
+                            response["message"] = "❌ Missing model name argument.";
+                            std::cout << response.dump() << "\n" << std::flush;
+                        } else {
+                            std::cerr << "[ERROR] Missing model name argument.\n" << std::flush;
+                        }
+                    }
                 }
                 else if (command_node->commandName == "add_url_model") {
                     if (command_node->arguments.size() >= 2) {
@@ -58,19 +103,38 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                             model_url.erase(std::remove(model_url.begin(), model_url.end(), '\"'), model_url.end());
 
                             session.modelName = model_name;
-                            
                             engine.add_url_model(model_name, model_url);
-                            std::cout << "{\"status\":\"success\",\"message\":\"Command executed: Model " 
-                                    << model_name << " has been downloaded and loaded into session.\"}\n" 
-                                    << std::flush;
+                            
+                            if (is_ui_mode) {
+                                nlohmann::json response;
+                                response["status"] = "success";
+                                response["command"] = "add_url_model";
+                                response["message"] = "✅ Model " + model_name + " has been downloaded and loaded.";
+                                std::cout << response.dump() << "\n" << std::flush;
+                            } else {
+                                std::cout << "[SYSTEM] Model " << model_name << " has been downloaded and loaded.\n";
+                            }
                         } else {
-                            std::cout << "{\"status\":\"error\",\"message\":\"Arguments extraction failed.\"}\n" << std::flush;
+                            if (is_ui_mode) {
+                                nlohmann::json response;
+                                response["status"] = "error";
+                                response["message"] = "❌ Arguments extraction failed.";
+                                std::cout << response.dump() << "\n" << std::flush;
+                            } else {
+                                std::cerr << "[ERROR] Arguments extraction failed.\n";
+                            }
                         }
                     } else {
-                        std::cout << "{\"status\":\"error\",\"message\":\"Missing required arguments.\"}\n" << std::flush;
+                        if (is_ui_mode) {
+                            nlohmann::json response;
+                            response["status"] = "error";
+                            response["message"] = "❌ Missing required arguments.";
+                            std::cout << response.dump() << "\n" << std::flush;
+                        } else {
+                            std::cerr << "[ERROR] Missing required arguments.\n";
+                        }
                     }
                 }
-
                 else if (command_node->commandName == "generate") {
                     generation_requested = true; 
                 }
@@ -81,35 +145,44 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                 }
                 else if (command_node->commandName == "help") {
                     if (is_ui_mode) {
-                        std::string help_msg = "Commands:\\n/set_model --name <model>\\n/set_prompt --text <prompt>\\n/load_history --file <file>\\n/save_history --file <file>\\n/generate [text]\\n/set_param --param <val>\\n/show_params                     : Show current session parameters.\\n/exit";
-                        std::cout << "{\"status\":\"info\",\"message\":\"" << help_msg << "\"}\n" << std::flush;
+                        std::string help_msg = "Commands:\n/set_model --name <model>\n/add_url_model --name <model_name>\n/set_prompt --text <prompt>\n/load_history --file <file>\n/save_history --file <file>\n/generate [text]\n/set_param --param <val>\n/show_params : Show current session parameters.\n/exit";
+                        nlohmann::json response;
+                        response["status"] = "info";
+                        response["command"] = "help";
+                        response["message"] = help_msg;
+                        std::cout << response.dump() << "\n" << std::flush;
                     } else {
                         std::cout << "Available Commands:\n"
                                   << "  /help                              : Show this help message.\n"
-                                  << "  /add_url_model --name <model_name> : add a specific model from a URL.\n"
+                                  << "  /add_url_model --name <model_name> : Add a specific model from a URL.\n"
                                   << "  /set_model --name <model_name>     : Load a specific model.\n"
                                   << "  /set_prompt --text <prompt>        : Set the system prompt.\n"
                                   << "  /load_history --file <filename>    : Load chat history from a file.\n"
                                   << "  /save_history --file <filename>    : Save chat history to a file.\n"
                                   << "  /generate [text]                   : Generate a response based on context.\n"
-                                  << "  /set_param --param <value>         : Set parameters (temp, top_k,top_p, max_token).\n"
+                                  << "  /set_param --param <value>         : Set parameters (temp, top_k, top_p, max_token).\n"
                                   << "  /show_params                       : Show current session parameters.\n"
-                                  << "  /exit                              : Exit the application.\n";
+                                  << "  /exit                              : Exit the application.\n" << std::flush;
                     }
                 }
                 else if (command_node->commandName == "show_params") {
                     if (is_ui_mode) {
-                        std::cout << "{\"status\":\"info\",\"message\":\"Current Session Parameters:\\n"
-                                  << "  Model Name: " << session.modelName << "\\n"
-                                  << "  System Prompt: " << session.systemPrompt << "\\n"
-                                  << "  Temperature: " << session.currentTemperature << "\\n"
-                                  << "  Max Tokens: " << session.maxTokens << "\\n"
-                                  << "  Top K: " << session.topK << "\\n"
-                                  << "  Top P: " << session.topP << "\\n"
-                                  << "  Repeat Penalty: " << session.repeatPenalty << "\\n"
-                                  << "  History File Name: " << session.historyFileName
-                                  << "\"}\n" 
-                                  << std::flush;
+                        nlohmann::json response;
+                        response["status"] = "info";
+                        response["command"] = "show_params";
+                        
+                        nlohmann::json data;
+                        data["modelName"] = session.modelName;
+                        data["systemPrompt"] = session.systemPrompt;
+                        data["currentTemperature"] = session.currentTemperature;
+                        data["maxTokens"] = session.maxTokens;
+                        data["topK"] = session.topK;
+                        data["topP"] = session.topP;
+                        data["repeatPenalty"] = session.repeatPenalty;
+                        data["historyFileName"] = session.historyFileName;
+
+                        response["data"] = data;
+                        std::cout << response.dump() << "\n" << std::flush; 
                     } else {
                         std::cout << "[SYSTEM] Current Session Parameters:\n"
                                   << "  Model Name: " << session.modelName << "\n"
@@ -120,32 +193,47 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                                   << "  Top P: " << session.topP << "\n"
                                   << "  Repeat Penalty: " << session.repeatPenalty << "\n"
                                   << "  History File Name: " << session.historyFileName
-                                  << "\n";
+                                  << "\n" << std::flush;
                     }
-
                 }
                 else if (command_node->commandName == "set_prompt") {
+                    std::string extracted_prompt = "";
+
                     for (const auto& paramNodePtr : command_node->parameters) {
                         const ParameterNode* pNode = paramNodePtr.get();
                         if (pNode->key == "text") {
-                            session.systemPrompt = pNode->value;
-                            if (is_ui_mode) std::cout << "{\"status\":\"success\",\"message\":\"System prompt updated.\"}\n" << std::flush;
-                            else std::cout << "[SYSTEM] System prompt updated to: \"" << pNode->value << "\"\n";
+                            extracted_prompt = pNode->value;
                         }
                     }
-                }
-                else if (command_node->commandName == "set_model") {
-                    for (const auto& paramNodePtr : command_node->parameters) {
-                        const ParameterNode* pNode = paramNodePtr.get();
-                        if (pNode->key == "name") {
-                            session.modelName = pNode->value;
-                            if (is_ui_mode) std::cout << "{\"status\":\"success\",\"message\":\"Model name set to: " 
-                                                      << pNode->value 
-                                                      << ". Use /generate to load the model.\"}\n" 
-                                                      << std::flush;
-                            else std::cout << "[SYSTEM] Model name set to: \"" 
-                                           << pNode->value 
-                                           << "\". Use /generate to load the model.\n";
+
+                    if (extracted_prompt.empty() && !command_node->arguments.empty()) {
+                        auto text_node = dynamic_cast<LiteralTextNode*>(command_node->arguments[0].get());
+                        if (text_node) {
+                            extracted_prompt = text_node->text;
+                        }
+                    }
+
+                    if (!extracted_prompt.empty()) {
+                        extracted_prompt.erase(std::remove(extracted_prompt.begin(), extracted_prompt.end(), '\"'), extracted_prompt.end());
+                        session.systemPrompt = extracted_prompt;
+
+                        if (is_ui_mode){
+                            nlohmann::json response;
+                            response["status"] = "success";
+                            response["command"] = "set_prompt";
+                            response["message"] = "✅ System prompt updated.";
+                            std::cout << response.dump() << "\n" << std::flush;
+                        } else {
+                            std::cout << "[SYSTEM] System prompt updated to: \"" << session.systemPrompt << "\"\n";
+                        }
+                    } else {
+                        if (is_ui_mode) {
+                            nlohmann::json response;
+                            response["status"] = "error";
+                            response["message"] = "❌ Missing prompt text.";
+                            std::cout << response.dump() << "\n" << std::flush;
+                        } else {
+                            std::cerr << "[ERROR] Missing prompt text.\n" << std::flush;
                         }
                     }
                 }
@@ -155,7 +243,7 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                         engine.change_parameters(pNode->key, pNode->value, session, is_ui_mode);
                     }
                 }
-               else if (command_node->commandName == "save_history") { 
+                else if (command_node->commandName == "save_history") { 
                     std::string filename = ""; 
                     if (!command_node->arguments.empty()) { 
                         auto text_node = dynamic_cast<LiteralTextNode*>(command_node->arguments[0].get()); 
@@ -163,17 +251,25 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                     }
                     filename.erase(std::remove(filename.begin(), filename.end(), '\"'), filename.end()); 
                     session.historyFileName = filename; 
+                    
                     if (engine.save_history(session.historyFileName, session)) {
                         if (is_ui_mode) {
-                            std::cout << "{\"status\":\"success\",\"message\":\"History disimpan: " << filename << "\"}\n" << std::flush;
+                            nlohmann::json response;
+                            response["status"] = "success";
+                            response["command"] = "save_history";
+                            response["message"] = "✅ History saved: " + filename;
+                            std::cout << response.dump() << "\n" << std::flush;
                         } else {
-                            std::cout << "Saving chat history to file: " << filename << " [SUCCESS]\n";
+                            std::cout << "[SUCCESS] Saving chat history to file: " << filename << "\n";
                         }
                     } else {
                         if (is_ui_mode) {
-                            std::cout << "{\"status\":\"error\",\"message\":\"Gagal menyimpan history: " << filename << "\"}\n" << std::flush;
+                            nlohmann::json response;
+                            response["status"] = "error";
+                            response["message"] = "❌ Failed to save history: " + filename;
+                            std::cout << response.dump() << "\n" << std::flush;
                         } else {
-                            std::cout << "Failed to save chat history to file: " << filename << "\n";
+                            std::cerr << "[ERROR] Failed to save chat history to file: " << filename << "\n";
                         }
                     }
                 }
@@ -188,9 +284,13 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                     
                     if (engine.load_history(session.historyFileName, session)) {
                         if (is_ui_mode) {
-                            std::cout << "{\"status\":\"success\",\"message\":\"History dimuat: " << filename << "\"}\n" << std::flush;
+                            nlohmann::json response;
+                            response["status"] = "success";
+                            response["command"] = "load_history";
+                            response["message"] = "✅ History loaded: " + filename;
+                            std::cout << response.dump() << "\n" << std::flush;
                         } else {
-                            std::cout << "Loading chat history from file: " << filename << "\n";
+                            std::cout << "[SUCCESS] Loading chat history from file: " << filename << "\n";
                             std::cout << "--------------------------------------------------------\n";
                             for (const auto& msg : session.chatHistory) {
                                 if (msg.role == "user") {
@@ -203,9 +303,12 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
                         }
                     } else {
                         if (is_ui_mode) {
-                            std::cout << "{\"status\":\"error\",\"message\":\"Gagal memuat history: " << filename << "\"}\n" << std::flush;
+                            nlohmann::json response;
+                            response["status"] = "error";
+                            response["message"] = "❌ Failed to load history: " + filename;
+                            std::cout << response.dump() << "\n" << std::flush;
                         } else {
-                            std::cout << "Failed to load chat history from file: " << filename << "\n";
+                            std::cerr << "[ERROR] Failed to load chat history from file: " << filename << "\n";
                         }
                     }
                 }
@@ -214,8 +317,24 @@ void process_commands(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, C
     }
 
     if (all_commands_applied_successfully) { 
-        if (model_load_requested) engine.load_model(session.modelName); 
-        if (generation_requested) engine.execute_generation(session, is_ui_mode); 
+        try {
+            if (model_load_requested) {
+                engine.load_model(session.modelName); 
+            }
+            if (generation_requested) {
+                engine.execute_generation(session, is_ui_mode); 
+            }
+        } 
+        catch (const std::exception& e) {
+            if (is_ui_mode) {
+                nlohmann::json response;
+                response["status"] = "error";
+                response["message"] = "❌ Engine Runtime Error: " + std::string(e.what());
+                std::cout << response.dump() << "\n" << std::flush;
+            } else {
+                std::cerr << "[ENGINE ERROR] " << e.what() << "\n" << std::flush;
+            }
+        }
     }
 }
 
@@ -231,6 +350,7 @@ void run_ui_mode(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, Contex
         if (session.shouldExit) break;
     }
 }
+
 void run_cli_mode(LlamaEngine& engine, SemanticAnalyzer& semanticAnalyzer, ContextSession& session) {
     std::cout << "=== BawalChatbot CLI Interactive Mode ===\n";
     std::cout << "Type /help to see available commands or /exit to quit.\n";

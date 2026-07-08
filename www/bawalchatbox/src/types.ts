@@ -24,9 +24,33 @@ export interface StructuredOutput {
 }
 
 export enum TokenType {
-  COMMAND,                        
-  PARAMETER,                      
-  TEXT,                           
-  END_OF_FILE,                    
-  UNKNOWN                         
+  COMMAND,
+  PARAMETER,
+  FLOAT,
+  INT,
+  BOOL,
+  TEXT, 
+  END_OF_FILE,
+  UNKNOWN,
+
+  PLUS,         // '+'
+  MINUS,        // '-'
+  STAR,         // '*'
+  SLASH,        // '/'
+  EQUAL,        // '='
+  BANG,         // '!' 
+
+  EQUAL_EQUAL,  // '=='
+  BANG_EQUAL,   // '!='
+  LESS,         // '<'
+  GREATER,      // '>'
+
+  LEFT_PAREN,   // '(' (buat if)
+  RIGHT_PAREN,  // ')'
+  LEFT_BRACE,   // '{' (awal BlockStatement)
+  RIGHT_BRACE,  // '}' (akhir BlockStatement)
+  COMMA,        // ','
+  
+  IF,           // "if"
+  ELSE          // "else"                    
 }
