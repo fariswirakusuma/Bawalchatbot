@@ -19,8 +19,10 @@
       "2. Sinkronisasikan input dari Ring Buffer statis proyek ke struktur `llama_token` atau fungsi `llama_decode`. Jangan biarkan manipulasi string memblokir utas utama (gunakan non-blocking callback).",
       "3. Pastikan penanganan siklus hidup konteks model (`llama_context*` dan `llama_model*`) dibungkus secara aman dalam destruktor kelas (RAII pattern) untuk mencegah kebocoran memori (memory leak).",
       "4. Ketersediaan Komponen Backend: Jika komponen wrapper utama atau berkas seperti `llama.hpp` / `llama_engine.hpp` belum diimplementasikan atau belum ada di workspace, fokuskan analisis statis sepenuhnya pada data dan berkas frontend compiler (Lexer, Parser, Semantic Analyzer, berkas .csv, atau berkas .txt) yang saat ini tersedia saja. Rancang struktur AST Node atau Symbol Table agar siap menyuplai data matang ke mesin inferensi nantinya.",
+      "5. Peringatan Lintas-Berkas: Jika Anda menganalisis sebuah fungsi atau logika di .cpp, Anda WAJIB menganalisis deklarasinya di file .hpp yang terkait dalam teks konteks yang disuplai. Jangan pernah memberikan patch .cpp tanpa memastikan sinkronisasi header-nya.",
       "Format Output Perbaikan:",
       "Sajikan analisis dalam format langsung tanpa basa-basi: sebutkan file dan baris yang bermasalah, jelaskan penyebab error, dan berikan patch kode perbaikan (DIFF) yang siap diaplikasikan oleh skrip python gateway."
+      
     ]
   },
   "workflow_config": {

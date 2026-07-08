@@ -2,11 +2,14 @@
 
 #include <string>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 struct Message {
     std::string role;    
     std::string content;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Message, role, content)
 
 struct ContextSession {
     std::string systemPrompt;
@@ -20,6 +23,18 @@ struct ContextSession {
     std::string modelName; 
     std::string historyFileName;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ContextSession,
+    systemPrompt,
+    currentTemperature,
+    maxTokens,
+    topK,
+    topP,
+    repeatPenalty,
+    chatHistory,
+    modelName,
+    historyFileName
+)
 
 struct StructuredOutput {
     std::string rawText;          
