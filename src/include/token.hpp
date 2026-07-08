@@ -4,9 +4,33 @@
 enum class TokenType {
     COMMAND,
     PARAMETER,
-    TEXT,
+    FLOAT,
+    INT,
+    BOOL,
+    TEXT, 
     END_OF_FILE,
-    UNKNOWN
+    UNKNOWN,
+
+    PLUS,         // '+'
+    MINUS,        // '-'
+    STAR,         // '*'
+    SLASH,        // '/'
+    EQUAL,        // '='
+    BANG,         // '!' 
+
+    EQUAL_EQUAL,  // '=='
+    BANG_EQUAL,   // '!='
+    LESS,         // '<'
+    GREATER,      // '>'
+
+    LEFT_PAREN,   // '(' (buat if)
+    RIGHT_PAREN,  // ')'
+    LEFT_BRACE,   // '{' (awal BlockStatement)
+    RIGHT_BRACE,  // '}' (akhir BlockStatement)
+    COMMA,        // ','
+
+    IF,           // "if"
+    ELSE          // "else"
 };
 
 struct Token {

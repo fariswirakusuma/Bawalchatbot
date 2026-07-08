@@ -9,7 +9,7 @@ from openai import OpenAI
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_files: str,token :int):
+def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_files: list, token: int):
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_path = os.path.join(base_path, ".gemini", "workflows", f"{mode}.json")
     
@@ -31,6 +31,8 @@ def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_fi
 
     if update_files:
         for rel_file_path in update_files:
+            if not rel_file_path: 
+                continue
             full_update_path = os.path.join(base_path, rel_file_path)
             if os.path.exists(full_update_path):
                 found_files.add(full_update_path)
@@ -79,13 +81,16 @@ def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_fi
         workflow_config = config_data.get("workflow_config", config_data)
         combined_system_instruction = workflow_config.get("ai_context", {}).get("system_instruction", "Kamu adalah asisten AI.")
 
-    target_tag = update_files if update_files else "path/ke/file.ekstensi"
     auto_save_directive = (
         f"\n\n[SISTEM AUTO-SAVE AKTIF]\n"
-        f"Jika Anda memberikan perbaikan kode atau file baru, Anda WAJIB menggunakan format berikut agar skrip dapat menimpanya secara otomatis:\n"
-        f"[UPDATE_FILE: {target_tag}]\n"
-        f"```\n"
-        f"TULIS_SELURUH_KODE_DISINI\n"
+        f"Jika Anda memberikan perbaikan kode atau file baru (meskipun lebih dari satu file), Anda WAJIB memisahkannya ke dalam format berikut untuk setiap file agar skrip dapat menimpanya secara otomatis:\n\n"
+        f"[UPDATE_FILE: direktori/file_pertama.hpp]\n"
+        f"```cpp\n"
+        f"// TULIS SELURUH KODE FILE PERTAMA DISINI SECARA UTUH\n"
+        f"```\n\n"
+        f"[UPDATE_FILE: direktori/file_kedua.cpp]\n"
+        f"```cpp\n"
+        f"// TULIS SELURUH KODE FILE KEDUA DISINI SECARA UTUH\n"
         f"```\n"
     )
     combined_system_instruction += auto_save_directive
@@ -143,9 +148,10 @@ def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_fi
     matches = list(re.finditer(patch_pattern, response_text, re.DOTALL))
 
     if matches:
-        logging.info("[AUTO-SAVE] Mendeteksi patch kode dari agen AI.")
+        logging.info(f"[AUTO-SAVE] Mendeteksi {len(matches)} patch kode dari agen AI.")
         for match in matches:
-            target_file = match.group(1).strip()
+            # Membersihkan nama file jika LLM secara tidak sengaja menambahkan karakter aneh
+            target_file = match.group(1).strip(" []'\"")
             new_code = match.group(2)
             
             full_target_path = os.path.join(base_path, target_file)
@@ -161,25 +167,31 @@ def execute_gemini_agent(mode: str, user_prompt: str, model_type: str, update_fi
             with open(full_target_path, 'w', encoding='utf-8') as f:
                 f.write(new_code)
             logging.info(f"[AUTO-SAVE] Berhasil menulis/menimpa berkas: {target_file}")
+    else:
+         logging.info("[AUTO-SAVE] Tidak ada blok update file yang terdeteksi pada respon AI.")
 
     return response_text
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini Agent Gateway Engine")
-    parser.add_argument("--mode", type=str, required=True, help="Mode alur kerja (contoh: debugger, web_builder,documentation)")
-    parser.add_argument("--prompt", type=str, required=True, help="Prompt atau log error mentah untuk dianalisis")
-    parser.add_argument("--model-type", type=str, default="pro", choices=["pro", "flash", "flash-3.5", "flash-3.1", "pro-3.1", "pro-3.5"], 
-                        help="Tipe model Gemini yang digunakan: pro atau flash (default: pro)")
-    # Registrasi flag baru
-    parser.add_argument("--update-files", nargs='+', default=[], help="Daftar berkas target untuk diupdate otomatis")
-    parser.add_argument("--token", type=int, default=4000, help="Batas maksimum output token")
+    parser.add_argument("--mode", type=str, required=True, help="Mode alur kerja")
+    parser.add_argument("--prompt", type=str, required=True, help="Prompt instruksi pengguna")
+    parser.add_argument("--model-type", type=str, default="pro")
+    
+    parser.add_argument("--update-files", type=str, default="", help="Daftar berkas target (pisahkan dengan koma)")
+    parser.add_argument("--token", type=int, default=8000, help="Batas maksimum output token")
     args = parser.parse_args()
+    
+    raw_files_str = args.update_files.strip("[]'\" ")
+    file_list = []
+    if raw_files_str:
+        file_list = [f.strip(" '\"") for f in raw_files_str.split(',')]
     
     output = execute_gemini_agent(
         mode=args.mode, 
         user_prompt=args.prompt, 
         model_type=args.model_type, 
-        update_files=args.update_files,
+        update_files=file_list,
         token=args.token
     )
     print(output)

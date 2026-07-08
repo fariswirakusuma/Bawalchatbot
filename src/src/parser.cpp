@@ -1,6 +1,7 @@
 
 #include "parser.hpp"
 #include <stdexcept>
+#include <algorithm>
 
 std::string ASTNode::getNodeTypeName() const {
     switch (type) {
@@ -10,6 +11,9 @@ std::string ASTNode::getNodeTypeName() const {
         case NodeType::LiteralText: return "LiteralText";
         case NodeType::VariableDeclaration: return "VariableDeclaration";
         case NodeType::VariableAccess: return "VariableAccess";
+        case NodeType::LiteralInt: return "LiteralInt";
+        case NodeType::LiteralFloat: return "LiteralFloat";
+        case NodeType::LiteralBool: return "LiteralBool";
         default: return "Unknown";
     }
 }
@@ -68,6 +72,7 @@ ParameterNode::ParameterNode() {
 
 ParameterNode::ParameterNode(const std::string& k, const std::string& v) : key(k), value(v) { 
     type = NodeType::Parameter; 
+
 }
 
 void ParameterNode::printAST_tree(std::ostream& os, const std::string& prefix, bool isLast) const {
@@ -178,7 +183,6 @@ std::unique_ptr<ASTNode> Parser::parse_statement() {
 std::unique_ptr<CommandNode> Parser::parse_command() {
     auto command_node = std::make_unique<CommandNode>();
     
-    // Command string cleanup (e.g. /set-model -> set-model)
     std::string raw_cmd = m_current_token.value;
     if (!raw_cmd.empty() && raw_cmd[0] == '/') {
         raw_cmd = raw_cmd.substr(1);
@@ -186,13 +190,12 @@ std::unique_ptr<CommandNode> Parser::parse_command() {
     
     command_node->commandName = raw_cmd;
     command_node->cmdType = get_command_type(raw_cmd);
-    advance(); // Consume the COMMAND token
-
-    // Parse parameters and arguments that belong to this command
-    while (m_current_token.type == TokenType::PARAMETER || m_current_token.type == TokenType::TEXT) {
+    advance();
+    while (m_current_token.type != TokenType::END_OF_FILE) {
         if (m_current_token.type == TokenType::PARAMETER) {
             command_node->parameters.push_back(parse_parameter());
-        } else if (m_current_token.type == TokenType::TEXT) {
+        } 
+        else {
             command_node->arguments.push_back(parse_argument());
         }
     }
@@ -214,13 +217,19 @@ std::unique_ptr<ParameterNode> Parser::parse_parameter() {
     }
     key = key.substr(start_idx);
 
-    // Cek jika terdapat '=' di dalam parameter (e.g. temp=0.7)
-    size_t eq_pos = key.find('=');
-    if (eq_pos != std::string::npos) {
-        value = key.substr(eq_pos + 1);
-        key = key.substr(0, eq_pos);
+    if (m_current_token.type == TokenType::INT || 
+        m_current_token.type == TokenType::FLOAT || 
+        m_current_token.type == TokenType::TEXT) {
+        
+        value = m_current_token.value; 
+    } 
+    else {
+        size_t eq_pos = key.find('=');
+        if (eq_pos != std::string::npos) {
+            value = key.substr(eq_pos + 1);
+            key = key.substr(0, eq_pos);
+        }
     }
-
     return std::make_unique<ParameterNode>(key, value);
 }
 
@@ -247,11 +256,13 @@ std::unique_ptr<LiteralTextNode> Parser::parse_literal_text() {
 
 CommandType Parser::get_command_type(const std::string& command_name) const {
     if (command_name == "set-model" || command_name == "set_model") return CommandType::SetModel;
+    if (command_name == "add-url-model" || command_name == "add_url_model") return CommandType::AddUrlModel;
     if (command_name == "set-prompt" || command_name == "set_prompt") return CommandType::SetPrompt;
     if (command_name == "load-history" || command_name == "load_history") return CommandType::LoadHistory;
     if (command_name == "save-history" || command_name == "save_history") return CommandType::SaveHistory;
     if (command_name == "generate") return CommandType::Generate;
     if (command_name == "help") return CommandType::Help;
+    if (command_name == "show-params" || command_name == "show_params") return CommandType::ShowParams;
     if (command_name == "set-param" || command_name == "set_param") return CommandType::SetParam;
     if (command_name == "exit") return CommandType::Exit;
     return CommandType::Unknown;

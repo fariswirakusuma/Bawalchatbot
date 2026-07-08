@@ -44,6 +44,7 @@ private:
     // error was found for that specific command.
 
     bool process_set_model_command(const CommandNode& node, ContextSession& session);
+    bool process_add_url_model_command(const CommandNode& node, ContextSession& session);
     bool process_set_prompt_command(const CommandNode& node, ContextSession& session);
     bool process_load_history_command(const CommandNode& node, ContextSession& session);
     bool process_save_history_command(const CommandNode& node, ContextSession& session);

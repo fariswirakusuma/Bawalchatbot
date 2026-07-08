@@ -1,7 +1,7 @@
 import os
 import sys
 import urllib.request
-
+import argparse
 def progress_callback(block_num, block_size, total_size):
     """Fungsi pembantu untuk menampilkan progress bar unduhan di terminal."""
     downloadED = block_num * block_size
@@ -13,8 +13,8 @@ def progress_callback(block_num, block_size, total_size):
         sys.stdout.write(f"\r[DOWNLOADING] Progress: {percent}% ({downloaded_mb:.1f}/{total_mb:.1f} MB)")
         sys.stdout.flush()
 
-def main():
-    MODEL_URL = "https://huggingface.co/Qwen/Qwen1.5-1.8B-Chat-GGUF/resolve/main/qwen1_5-1_8b-chat-q4_k_m.gguf"
+def define_model(model_url:str):
+    MODEL_URL = model_url if model_url else "https://huggingface.co/Qwen/Qwen1.5-1.8B-Chat-GGUF/resolve/main/qwen1_5-1_8b-chat-q4_k_m.gguf"
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dir = os.path.join(base_dir, "model")
@@ -39,4 +39,8 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Setup Qwen model for ChatboxAI")
+    parser.add_argument("--model-url", type=str, help="URL of the model to download")
+    
+    args = parser.parse_args()
+    define_model(model_url=args.model_url)  

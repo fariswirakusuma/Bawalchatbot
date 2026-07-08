@@ -17,7 +17,7 @@ std::optional<int> SemanticAnalyzer::string_to_int(const std::string& s) {
     try {
         size_t pos;
         int val = std::stoi(s, &pos);
-        if (pos == s.length()) { // Ensure the entire string was consumed
+        if (pos == s.length()) { 
             return val;
         }
     } catch (const std::invalid_argument&) {
@@ -69,6 +69,9 @@ bool SemanticAnalyzer::analyze_and_apply(const CommandNode* ast_root, ContextSes
         case CommandType::SetModel:
             success = process_set_model_command(*ast_root, session);
             break;
+        case CommandType::AddUrlModel:
+            success = process_add_url_model_command(*ast_root, session);
+            break;
         case CommandType::SetPrompt:
             success = process_set_prompt_command(*ast_root, session);
             break;
@@ -81,12 +84,14 @@ bool SemanticAnalyzer::analyze_and_apply(const CommandNode* ast_root, ContextSes
         case CommandType::Generate:
             success = process_generate_command(*ast_root, session);
             break;
+        case CommandType::ShowParams:
+            // ShowParams command doesn't modify session, but we can validate its structure if needed
+            success = true; // Assuming show_params command is always valid for now
+            break;
         case CommandType::SetParam:
             success = process_set_param_command(*ast_root, session);
             break;
         case CommandType::Help:
-            
-            // Help command doesn't modify session, but we can validate its structure if needed
             success = true; // Assuming help command is always valid for now
             break;
         case CommandType::Exit:
@@ -136,7 +141,6 @@ bool SemanticAnalyzer::process_set_prompt_command(const CommandNode& node, Conte
         add_error("Semantic Error: 'set_prompt' command requires a prompt string.");
         return false;
     }
-    // for combining all literal text arguments into a single prompt string
     std::string combined_prompt = "";
     if (!node.arguments.empty()) {
         for (const auto& argNodePtr : node.arguments) {
@@ -162,6 +166,40 @@ bool SemanticAnalyzer::process_set_prompt_command(const CommandNode& node, Conte
             return false;
         }
     }
+    return false;
+}
+
+bool SemanticAnalyzer::process_add_url_model_command(const CommandNode& node, ContextSession& session) {
+    if (node.arguments.size() < 2) {
+        add_error("Semantic Error: 'add_url_model' command requires two arguments: <model_name> and <model_url>.");
+        return false;
+    }
+
+    std::string model_name;
+    std::string model_url;
+    if (node.arguments[0]->type == NodeType::LiteralText) {
+        const LiteralTextNode* nameNode = static_cast<const LiteralTextNode*>(node.arguments[0].get());
+        model_name = nameNode->text;
+    } else {
+        add_error("Semantic Error: 'add_url_model' command expects a literal text for the model name at argument 1.");
+        return false;
+    }
+
+    if (node.arguments[1]->type == NodeType::LiteralText) {
+        const LiteralTextNode* urlNode = static_cast<const LiteralTextNode*>(node.arguments[1].get());
+        model_url = urlNode->text;
+    } else {
+        add_error("Semantic Error: 'add_url_model' command expects a literal text for the model URL at argument 2.");
+        return false;
+    }
+    if (!model_name.empty() && !model_url.empty()) {
+        model_name.erase(std::remove(model_name.begin(), model_name.end(), '\"'), model_name.end());
+        model_url.erase(std::remove(model_url.begin(), model_url.end(), '\"'), model_url.end());
+
+        session.modelName = model_name; 
+        return true;
+    }
+
     return false;
 }
 
@@ -231,7 +269,6 @@ bool SemanticAnalyzer::process_generate_command(const CommandNode& node, Context
     bool success = true;
     std::string combined_user_prompt = "";
 
-    // PERBAIKAN UTAMA: Gabungkan semua argumen teks menggunakan spasi
     for (const auto& argNodePtr : node.arguments) {
         if (argNodePtr->type == NodeType::LiteralText) {
             const LiteralTextNode* textNode = static_cast<const LiteralTextNode*>(argNodePtr.get());
@@ -247,14 +284,31 @@ bool SemanticAnalyzer::process_generate_command(const CommandNode& node, Context
 
     for (const auto& paramNodePtr : node.parameters) {
         const ParameterNode* pNode = paramNodePtr.get();
-
         if (pNode->key == "prompt") {
             if (!combined_user_prompt.empty()) {
-                add_error("Semantic Error: 'generate' command received multiple prompt arguments (e.g., direct and --prompt).");
+                add_error("Semantic Error: 'generate' command received multiple prompt arguments.");
                 success = false;
             }
             combined_user_prompt = pNode->value;
-        } else if (pNode->key == "max_tokens") {
+        } else {
+            add_error("Semantic Warning: Perintah 'generate' tidak menerima parameter tambahan di luar --prompt di versi ini.");
+        }
+    }
+
+    if (!combined_user_prompt.empty() && success) {
+        session.chatHistory.push_back({"user", combined_user_prompt});
+    }
+
+    return success;
+}
+
+bool SemanticAnalyzer::process_set_param_command(const CommandNode& node, ContextSession& session) {
+    bool success = true;
+
+    for (const auto& paramNodePtr : node.parameters) {
+        const ParameterNode* pNode = paramNodePtr.get();
+
+        if (pNode->key == "max_tokens") {
             if (auto val = string_to_int(pNode->value)) {
                 session.maxTokens = val.value();
             } else {
@@ -292,77 +346,10 @@ bool SemanticAnalyzer::process_generate_command(const CommandNode& node, Context
         } else if (pNode->key == "system") {
             session.systemPrompt = pNode->value;
         } else {
-            add_error("Semantic Warning: Unknown parameter for 'generate' command: --" + pNode->key);
+            add_error("Semantic Warning: Unknown parameter for 'set_param' command: --" + pNode->key);
         }
     }
 
-    if (!combined_user_prompt.empty()) {
-        session.chatHistory.push_back({"user", combined_user_prompt});
-    }
-
-    return success;
-}
-
-bool SemanticAnalyzer::process_set_param_command(const CommandNode& node, ContextSession& session) {
-    bool success = true;
-    if (node.parameters.empty()) {
-        add_error("Semantic Error: 'set_param' command requires at least one parameter (e.g., --temp 0.7).");
-        return false;
-    }
-
-    for (const auto& paramNodePtr : node.parameters) {
-        const ParameterNode* pNode = paramNodePtr.get();
-
-        if (pNode->key.empty()) {
-            add_error("Semantic Error: 'set_param' command expects named parameters (e.g., --temp), not direct values.");
-            success = false;
-            continue;
-        }
-
-        if (pNode->key == "temp") {
-            if (auto val = string_to_float(pNode->value)) {
-                session.currentTemperature = val.value();
-            } else {
-                add_error("Semantic Error: Invalid value for --temp: '" + pNode->value + "'. Expected a float.");
-                success = false;
-            }
-        } else if (pNode->key == "top_k") {
-            if (auto val = string_to_int(pNode->value)) {
-                session.topK = val.value();
-            } else {
-                add_error("Semantic Error: Invalid value for --top_k: '" + pNode->value + "'. Expected an integer.");
-                success = false;
-            }
-        } else if (pNode->key == "top_p") {
-            if (auto val = string_to_float(pNode->value)) {
-                session.topP = val.value();
-            } else {
-                add_error("Semantic Error: Invalid value for --top_p: '" + pNode->value + "'. Expected a float.");
-                success = false;
-            }
-        } else if (pNode->key == "repeat_penalty") {
-            if (auto val = string_to_float(pNode->value)) {
-                session.repeatPenalty = val.value();
-            } else {
-                add_error("Semantic Error: Invalid value for --repeat_penalty: '" + pNode->value + "'. Expected a float.");
-                success = false;
-            }
-        } else if (pNode->key == "max_tokens") {
-            if (auto val = string_to_int(pNode->value)) {
-                session.maxTokens = val.value();
-            } else {
-                add_error("Semantic Error: Invalid value for --max_tokens: '" + pNode->value + "'. Expected an integer.");
-                success = false;
-            }
-        } else if (pNode->key == "system") {
-            session.systemPrompt = pNode->value;
-        } else if (pNode->key == "model") {
-            session.modelName = pNode->value;
-        } else {
-            add_error("Semantic Error: Unknown parameter for 'set_param' command: --" + pNode->key);
-            success = false;
-        }
-    }
     return success;
 }
 

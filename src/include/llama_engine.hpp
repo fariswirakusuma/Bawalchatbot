@@ -20,10 +20,12 @@ public:
     bool load_model(const std::string& model_path);
     bool load_history(const std::string& filename, ContextSession& session);
     bool save_history(const std::string& filename, const ContextSession& session);
+    void add_url_model(const std::string& model_name, const std::string& model_url);
+    void change_parameters(const std::string& param_name, const std::string& param_value, ContextSession& session, bool is_ui_mode);
 
 
     // Dipanggil saat SemanticAnalyzer sukses memproses perintah '/generate'
-    void execute_generation(ContextSession& session);
+    void execute_generation(ContextSession& session, bool is_ui_mode);
 
 private:
     llama_model* model = nullptr;
