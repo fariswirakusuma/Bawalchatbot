@@ -22,7 +22,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: true // PERBAIKAN: Aktifkan sandbox untuk mengamankan proses renderer
     },
   });
 
@@ -53,7 +53,14 @@ function initBackend() {
     engineProcess = spawn(enginePath, [], { cwd: workspaceRoot });
     engineProcess.stdout.on('data', (data) => {
       if (mainWindow) {
-        mainWindow.webContents.send('engine-output', data.toString());
+        const rawOutput = data.toString();
+        const lines = rawOutput.split('\n');
+        
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue; 
+            mainWindow.webContents.send('engine-output', trimmedLine);
+        }
       }
     });
 
@@ -65,6 +72,8 @@ function initBackend() {
 
     engineProcess.on('close', (code) => {
       console.log(`Proses backend C++ keluar dengan kode: ${code}`);
+      mainWindow = null;
+      app.quit();
     });
 
     engineProcess.on('error', (err) => {
@@ -88,8 +97,15 @@ app.on('window-all-closed', () => {
   }
 });
 
+function sanitizeCommand(cmd: string): string {
+  const controlRegex = new RegExp('[\\r\\x00-\\x1F\\x7F]', 'g');
+  return cmd.replace(controlRegex, ''); 
+}
 ipcMain.on('execute-command', (_event, command: string) => {
+  if (typeof command !== 'string') return; 
+
+  const sanitized = sanitizeCommand(command);
   if (engineProcess && engineProcess.stdin.writable) {
-    engineProcess.stdin.write(command + '\n');
+    engineProcess.stdin.write(sanitized + '\n');
   }
 });
